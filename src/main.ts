@@ -80,8 +80,8 @@ btnNext.addEventListener("click", () => {
   game.nextLevel();
 });
 
-// Mouse em coordenadas do canvas (o CSS pode escalar o elemento).
-function canvasPos(e: MouseEvent): { sx: number; sy: number } {
+// Posição do ponteiro em coordenadas do canvas (o CSS escala o elemento).
+function canvasPos(e: PointerEvent): { sx: number; sy: number } {
   const rect = canvas.getBoundingClientRect();
   return {
     sx: ((e.clientX - rect.left) / rect.width) * CANVAS_W,
@@ -89,12 +89,20 @@ function canvasPos(e: MouseEvent): { sx: number; sy: number } {
   };
 }
 
-canvas.addEventListener("mousemove", (e) => {
+// Mouse: hover mira, clique chuta. Touch: arrastar mira (a linha
+// acompanha o dedo), soltar chuta — sem depender de hover.
+canvas.addEventListener("pointerdown", (e) => {
+  canvas.setPointerCapture(e.pointerId);
   const { sx, sy } = canvasPos(e);
   game.pointerMove(sx, sy);
 });
 
-canvas.addEventListener("click", (e) => {
+canvas.addEventListener("pointermove", (e) => {
+  const { sx, sy } = canvasPos(e);
+  game.pointerMove(sx, sy);
+});
+
+canvas.addEventListener("pointerup", (e) => {
   const { sx, sy } = canvasPos(e);
   game.pointerClick(sx, sy);
 });

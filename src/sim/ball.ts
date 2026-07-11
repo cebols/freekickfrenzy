@@ -15,6 +15,7 @@ import {
   SPIN_DECAY,
   SPIN_SURFACE_KICK,
   WALL_HEIGHT,
+  WIND_PUSH_K,
 } from "./world";
 import type { WallPlacement } from "../levels/levels";
 
@@ -47,6 +48,7 @@ export class BallSim {
     start: { x: number; y: number },
     kickV: Vec3,
     spinZ: number,
+    private dip: number,
     private wind: { x: number; y: number },
     private wall: WallPlacement,
   ) {
@@ -68,7 +70,16 @@ export class BallSim {
     const rel = Math.hypot(rx, ry, rz);
     this.v.x -= DRAG_K * rel * rx * dt;
     this.v.y -= DRAG_K * rel * ry * dt;
-    this.v.z -= (GRAVITY + DRAG_K * rel * rz) * dt;
+    // Topspin (dip) só age com a bola no ar.
+    const airborne = this.p.z > BALL_RADIUS * 1.5;
+    this.v.z -= (GRAVITY + (airborne ? this.dip : 0) + DRAG_K * rel * rz) * dt;
+
+    // Vento empurrando diretamente (além do arrasto relativo): com
+    // vendaval, a bola faz trajetórias cômicas — é feature.
+    if (this.p.z > BALL_RADIUS * 2) {
+      this.v.x += WIND_PUSH_K * this.wind.x * dt;
+      this.v.y += WIND_PUSH_K * this.wind.y * dt;
+    }
 
     // Magnus: acelera perpendicular à velocidade horizontal.
     this.v.x += MAGNUS_K * this.spinZ * -this.v.y * dt;
@@ -251,9 +262,14 @@ export class BallSim {
       this.done = speed < 0.4 || this.t > 6;
       return;
     }
+    // Lance morto: bola voltando do rebote ou já atrás do gol sem entrar —
+    // corta cedo para rearmar a cobrança rápido.
+    const deadRebound = this.t > 0.25 && this.v.y > 2.5;
+    const behindGoal = this.p.y < -1.2;
     this.done =
+      deadRebound ||
+      behindGoal ||
       this.t > 7 ||
-      this.p.y < -6 ||
       Math.abs(this.p.x) > 25 ||
       (speed < 0.3 && this.p.z <= BALL_RADIUS + 0.01);
   }

@@ -16,13 +16,17 @@ export const DRAG_K = 0.012;
 
 // Efeito (Magnus): aceleração lateral = MAGNUS_K * spin * perp(v_xy).
 // O spin é normalizado em [-1, 1] pelo desvio lateral da mira.
-export const MAGNUS_K = 0.28;
+// Alto de propósito: curvas exageradas são feature, não bug.
+export const MAGNUS_K = 0.5;
 export const SPIN_DECAY = 0.25; // por segundo
 // Impulso tangencial que o spin dá ao quicar na trave (m/s por unidade de spin)
 export const SPIN_SURFACE_KICK = 1.6;
 
-// Vento: força 100 equivale a esta velocidade de ar (m/s)
-export const WIND_MAX_SPEED = 9;
+// Vento: força 100 equivale a esta velocidade de ar (m/s)...
+export const WIND_MAX_SPEED = 15;
+// ...e além do arrasto relativo, empurra a bola diretamente — com
+// vendaval a trajetória fica cômica de propósito.
+export const WIND_PUSH_K = 0.9;
 
 // Barreira
 export const WALL_DISTANCE = 9.15; // distância regulamentar da bola

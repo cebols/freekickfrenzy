@@ -8,7 +8,7 @@ export const CANVAS_H = 600;
 
 export const GOAL_LINE_Y = 165; // linha do gol em pixels
 export const PX_PER_M_X = 24;
-export const PX_PER_M_Y = 13.5; // compressão de profundidade da "câmera"
+export const PX_PER_M_Y = 12; // compressão de profundidade da "câmera"
 export const PX_PER_M_Z = 24;
 
 export function toScreen(x: number, y: number, z = 0): { sx: number; sy: number } {

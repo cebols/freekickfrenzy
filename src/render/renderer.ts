@@ -1,6 +1,6 @@
 import { CANVAS_H, CANVAS_W, GOAL_LINE_Y, toScreen } from "./camera";
 import { GOAL_HALF, GOAL_HEIGHT, KEEPER_DEPTH } from "../sim/world";
-import { AIM_CIRCLE_RADIUS, aimCircleCenter } from "../sim/kick";
+import { AIM_CIRCLE_RADIUS } from "../sim/kick";
 import type { WallPlacement } from "../levels/levels";
 
 const FIELD_TOP = GOAL_LINE_Y - 14;
@@ -202,8 +202,8 @@ export function drawKicker(ctx: CanvasRenderingContext2D, pos: { x: number; y: n
 export function drawAimZone(
   ctx: CanvasRenderingContext2D,
   ball: { x: number; y: number },
+  c: { x: number; y: number },
 ): void {
-  const c = aimCircleCenter(ball);
   const dist = Math.hypot(ball.x, ball.y);
   const nx = -ball.x / dist;
   const ny = -ball.y / dist;

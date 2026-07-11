@@ -4,23 +4,28 @@ import { vec3 } from "./vec";
 // Mapeamento do clique no semicírculo → velocidade inicial da bola.
 // Todas as constantes de "game feel" vivem aqui para facilitar o tuning.
 
-export const AIM_CIRCLE_BEHIND = 3.2; // centro do semicírculo, metros atrás da bola
-export const AIM_CIRCLE_RADIUS = 2.6;
+export const AIM_CIRCLE_BEHIND = 4.0; // centro do semicírculo, metros atrás da bola
+export const AIM_CIRCLE_RADIUS = 4.2;
 
 const MIN_SPEED = 15; // m/s no chute mais fraco
 const MAX_SPEED = 27.5;
 
-// Quanto do desvio lateral da mira vira spin (curva de volta para o centro)
-const SPIN_AIM_K = 1.6;
+// Quanto do desvio lateral da mira vira spin (curva de volta para o centro).
+// Calibrado junto com AIM_SENSITIVITY: a curva precisa ser vistosa, mas sem
+// cancelar a abertura da mira — senão todo chute converge no goleiro.
+const SPIN_AIM_K = 1.2;
 
 // O ângulo batedor→bola é amortecido por este fator para virar a direção
 // real do chute — sem isso, miras levemente abertas saem larguíssimas.
-const AIM_SENSITIVITY = 0.5;
+const AIM_SENSITIVITY = 0.65;
 
-// Elevação: fração da velocidade horizontal que vira componente vertical.
-// Chutes mais fortes sobem proporcionalmente mais.
-const LOFT_MIN = 0.14;
-const LOFT_MAX = 0.30;
+// Elevação + topspin ("folha seca"): chute forte sobe por cima da
+// barreira e MERGULHA antes do travessão — o dip cresce com a força,
+// então potência máxima continua cabendo no gol. Chute fraco demais
+// não sobe o suficiente para passar a barreira.
+const LOFT_VZ_MIN = 5.2;
+const LOFT_VZ_MAX = 9.6;
+const DIP_ACCEL_MAX = 9.2; // m/s² extras para baixo na força máxima
 
 export interface AimState {
   /** Posição do batedor (pé de apoio) no chão, em metros. */
@@ -43,13 +48,14 @@ export function aimCircleCenter(ball: { x: number; y: number }): { x: number; y:
 
 /**
  * Restringe a posição do mouse (em metros) ao semicírculo de mira:
- * dentro do raio e nunca à frente da bola (semiplano oposto ao gol).
+ * dentro do raio e nunca à frente do centro (semiplano oposto ao gol).
+ * O centro pode vir deslocado (clamp de tela em faltas de canto).
  */
 export function clampToAimCircle(
   ball: { x: number; y: number },
+  c: { x: number; y: number },
   point: { x: number; y: number },
 ): AimState {
-  const c = aimCircleCenter(ball);
   let dx = point.x - c.x;
   let dy = point.y - c.y;
 
@@ -82,6 +88,8 @@ export interface Kick {
   v: Vec3;
   /** Spin lateral normalizado [-1, 1]; positivo curva para -x. */
   spinZ: number;
+  /** Aceleração extra para baixo (topspin), m/s². */
+  dip: number;
 }
 
 /**
@@ -123,9 +131,13 @@ export function kickDirection(
 export function computeKick(ball: { x: number; y: number }, aim: AimState): Kick {
   const dir = kickDirection(ball, aim);
   const speed = MIN_SPEED + aim.power * (MAX_SPEED - MIN_SPEED);
-  const loft = LOFT_MIN + aim.power * (LOFT_MAX - LOFT_MIN);
+  const vz = LOFT_VZ_MIN + aim.power * (LOFT_VZ_MAX - LOFT_VZ_MIN);
   // Spin oposto ao desvio da mira: chute aberto curva de volta ao centro.
   const spinZ = Math.max(-1, Math.min(1, -SPIN_AIM_K * dir.lateral));
 
-  return { v: vec3(dir.x * speed, dir.y * speed, speed * loft), spinZ };
+  return {
+    v: vec3(dir.x * speed, dir.y * speed, vz),
+    spinZ,
+    dip: DIP_ACCEL_MAX * aim.power,
+  };
 }
