@@ -40,7 +40,7 @@ src/
 ## Roadmap
 
 - [x] **Etapa 1 — core jogável**: mira, chute, voo 3D, gol/defesa/trave
-- [ ] **Etapa 2 — física completa**: efeito (Magnus), vento randômico com
+- [x] **Etapa 2 — física completa**: efeito (Magnus), vento randômico com
       indicador, traves como cilindros, goleiro reativo com skill por fase
 - [ ] **Etapa 3 — meta-jogo**: alvos ¼ de círculo nos ângulos, seleção de
       fases com estrelas persistidas (localStorage)

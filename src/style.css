@@ -64,6 +64,19 @@ body {
   opacity: 0.8;
 }
 
+#hud-wind {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#wind-arrow {
+  display: inline-block;
+  font-size: 18px;
+  color: #6db3f2;
+  transition: transform 0.3s ease;
+}
+
 /* ---- full screens (title / result) ---- */
 .screen {
   inset: 0;

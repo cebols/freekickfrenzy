@@ -229,15 +229,13 @@ export function drawAimLine(
   ctx: CanvasRenderingContext2D,
   kicker: { x: number; y: number },
   ball: { x: number; y: number },
+  dir: { x: number; y: number },
 ): void {
-  let dx = ball.x - kicker.x;
-  let dy = ball.y - kicker.y;
-  const len = Math.hypot(dx, dy) || 1;
-  dx /= len;
-  dy /= len;
+  // Do batedor até a bola, e da bola em diante na direção efetiva do
+  // chute (o efeito ainda curva a partir dela — a linha é um guia).
   const reach = Math.hypot(ball.x, ball.y) + 2;
   const from = toScreen(kicker.x, kicker.y);
-  const to = toScreen(ball.x + dx * reach, ball.y + dy * reach);
+  const to = toScreen(ball.x + dir.x * reach, ball.y + dir.y * reach);
 
   ctx.save();
   ctx.strokeStyle = "rgba(255,255,255,0.8)";
@@ -248,6 +246,20 @@ export function drawAimLine(
   ctx.lineTo(to.sx, to.sy);
   ctx.stroke();
   ctx.restore();
+}
+
+/** Rastro do voo: pontinhos translúcidos na posição projetada (com altura). */
+export function drawTrail(
+  ctx: CanvasRenderingContext2D,
+  trail: { x: number; y: number; z: number }[],
+): void {
+  ctx.fillStyle = "rgba(255,255,255,0.45)";
+  for (const p of trail) {
+    const s = toScreen(p.x, p.y, p.z);
+    ctx.beginPath();
+    ctx.arc(s.sx, s.sy, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 export function drawBall(

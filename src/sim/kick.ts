@@ -10,6 +10,13 @@ export const AIM_CIRCLE_RADIUS = 2.6;
 const MIN_SPEED = 15; // m/s no chute mais fraco
 const MAX_SPEED = 27.5;
 
+// Quanto do desvio lateral da mira vira spin (curva de volta para o centro)
+const SPIN_AIM_K = 1.6;
+
+// O ângulo batedor→bola é amortecido por este fator para virar a direção
+// real do chute — sem isso, miras levemente abertas saem larguíssimas.
+const AIM_SENSITIVITY = 0.5;
+
 // Elevação: fração da velocidade horizontal que vira componente vertical.
 // Chutes mais fortes sobem proporcionalmente mais.
 const LOFT_MIN = 0.14;
@@ -71,25 +78,54 @@ export function clampToAimCircle(
   };
 }
 
+export interface Kick {
+  v: Vec3;
+  /** Spin lateral normalizado [-1, 1]; positivo curva para -x. */
+  spinZ: number;
+}
+
 /**
  * Converte a mira em velocidade inicial: a bola sai na direção
  * batedor → bola (a linha tracejada), com módulo dado pela força.
+ * Mirar fora da reta bola–gol abre o chute e gera spin que curva
+ * a bola de volta para o centro do gol (a "folha seca").
  */
-export function computeKick(ball: { x: number; y: number }, aim: AimState): Vec3 {
+/**
+ * Direção efetiva do chute no chão: o ângulo da mira (batedor→bola) em
+ * relação à reta bola→gol, amortecido por AIM_SENSITIVITY.
+ */
+export function kickDirection(
+  ball: { x: number; y: number },
+  aim: AimState,
+): { x: number; y: number; lateral: number } {
+  const goalDist = Math.hypot(ball.x, ball.y);
+  const ux = -ball.x / goalDist;
+  const uy = -ball.y / goalDist;
+
   let dx = ball.x - aim.kicker.x;
   let dy = ball.y - aim.kicker.y;
   const len = Math.hypot(dx, dy);
   if (len < 1e-6) {
-    // batedor exatamente sobre o centro: chuta reto no gol
-    const d = Math.hypot(ball.x, ball.y);
-    dx = -ball.x / d;
-    dy = -ball.y / d;
-  } else {
-    dx /= len;
-    dy /= len;
+    return { x: ux, y: uy, lateral: 0 };
   }
+  dx /= len;
+  dy /= len;
 
+  // Componente lateral da mira (seno do desvio, com sinal).
+  const lateral = dx * -uy + dy * ux;
+  const dev = Math.atan2(dy * ux - dx * uy, dx * ux + dy * uy);
+  const ang = dev * AIM_SENSITIVITY;
+  const cos = Math.cos(ang);
+  const sin = Math.sin(ang);
+  return { x: ux * cos - uy * sin, y: ux * sin + uy * cos, lateral };
+}
+
+export function computeKick(ball: { x: number; y: number }, aim: AimState): Kick {
+  const dir = kickDirection(ball, aim);
   const speed = MIN_SPEED + aim.power * (MAX_SPEED - MIN_SPEED);
   const loft = LOFT_MIN + aim.power * (LOFT_MAX - LOFT_MIN);
-  return vec3(dx * speed, dy * speed, speed * loft);
+  // Spin oposto ao desvio da mira: chute aberto curva de volta ao centro.
+  const spinZ = Math.max(-1, Math.min(1, -SPIN_AIM_K * dir.lateral));
+
+  return { v: vec3(dir.x * speed, dir.y * speed, speed * loft), spinZ };
 }

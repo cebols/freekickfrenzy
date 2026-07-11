@@ -1,6 +1,14 @@
 import { LEVELS, placeWall, type LevelDef, type WallPlacement } from "../levels/levels";
 import { BallSim, type BallEvent } from "../sim/ball";
-import { clampToAimCircle, computeKick, aimCircleCenter, type AimState } from "../sim/kick";
+import { KeeperSim } from "../sim/keeper";
+import {
+  clampToAimCircle,
+  computeKick,
+  kickDirection,
+  aimCircleCenter,
+  type AimState,
+} from "../sim/kick";
+import { WIND_MAX_SPEED } from "../sim/world";
 import { scoreGoal } from "../scoring/score";
 import { toWorldGround } from "../render/camera";
 import {
@@ -12,10 +20,20 @@ import {
   drawGoal,
   drawKeeper,
   drawKicker,
+  drawTrail,
   drawWall,
 } from "../render/renderer";
 
 export type Phase = "title" | "aiming" | "flight" | "result";
+
+export interface Wind {
+  /** Direção para onde o vento sopra, em radianos no plano do chão. */
+  dir: number;
+  /** Força 0–100 mostrada ao jogador. */
+  force: number;
+  /** Velocidade do ar em m/s decomposta nos eixos do mundo. */
+  vec: { x: number; y: number };
+}
 
 export interface ShotResult {
   goal: boolean;
@@ -28,6 +46,7 @@ export interface GameCallbacks {
   onGoal(result: ShotResult, levelIdx: number, isLast: boolean): void;
   onMiss(result: ShotResult): void;
   onHudChange(levelIdx: number, total: number): void;
+  onWind(wind: Wind): void;
 }
 
 const MISS_RESET_DELAY = 1.4; // segundos até rearmar a cobrança
@@ -39,6 +58,8 @@ export class Game {
   wall: WallPlacement = placeWall(LEVELS[0]);
   aim: AimState;
   sim: BallSim | null = null;
+  keeper: KeeperSim = new KeeperSim(LEVELS[0].keeper);
+  wind: Wind = { dir: 0, force: 0, vec: { x: 0, y: 0 } };
 
   private missTimer = 0;
 
@@ -54,17 +75,14 @@ export class Game {
 
   start(): void {
     this.loadLevel(0);
-    this.phase = "aiming";
   }
 
   loadLevel(idx: number): void {
     this.levelIdx = idx;
     this.level = LEVELS[idx];
     this.wall = placeWall(this.level);
-    this.sim = null;
-    this.aim = this.restAim();
-    this.phase = "aiming";
     this.cb.onHudChange(idx, LEVELS.length);
+    this.newAttempt();
   }
 
   retryLevel(): void {
@@ -75,6 +93,27 @@ export class Game {
     this.loadLevel((this.levelIdx + 1) % LEVELS.length);
   }
 
+  /** Rearma a cobrança: vento novo, goleiro no lugar, batedor no centro. */
+  private newAttempt(): void {
+    this.sim = null;
+    this.aim = this.restAim();
+    this.keeper.reset(this.level.keeper);
+    this.wind = this.rollWind();
+    this.cb.onWind(this.wind);
+    this.phase = "aiming";
+  }
+
+  private rollWind(): Wind {
+    const dir = Math.random() * Math.PI * 2;
+    const force = Math.round(Math.random() * this.level.windMax);
+    const speed = (force / 100) * WIND_MAX_SPEED;
+    return {
+      dir,
+      force,
+      vec: { x: Math.cos(dir) * speed, y: Math.sin(dir) * speed },
+    };
+  }
+
   pointerMove(sx: number, sy: number): void {
     if (this.phase !== "aiming") return;
     this.aim = clampToAimCircle(this.level.ball, toWorldGround(sx, sy));
@@ -83,21 +122,19 @@ export class Game {
   pointerClick(sx: number, sy: number): void {
     if (this.phase !== "aiming") return;
     this.pointerMove(sx, sy);
-    const v = computeKick(this.level.ball, this.aim);
-    this.sim = new BallSim(this.level.ball, v, {
-      wall: this.wall,
-      keeperX: this.level.keeper.x,
-    });
+    const kick = computeKick(this.level.ball, this.aim);
+    this.sim = new BallSim(this.level.ball, kick.v, kick.spinZ, this.wind.vec, this.wall);
     this.phase = "flight";
   }
 
   update(dt: number): void {
     if (this.phase === "flight" && this.sim) {
-      this.sim.step(dt);
+      this.keeper.update(dt, this.sim);
+      this.sim.step(dt, this.keeper.x);
       if (this.sim.done) this.resolveShot();
     } else if (this.phase === "result" && this.missTimer > 0) {
       this.missTimer -= dt;
-      if (this.missTimer <= 0) this.retryShot();
+      if (this.missTimer <= 0) this.newAttempt();
     }
   }
 
@@ -116,28 +153,24 @@ export class Game {
     }
   }
 
-  /** Tentativas ilimitadas: errou, a bola volta para o mesmo lugar. */
-  private retryShot(): void {
-    this.sim = null;
-    this.aim = this.restAim();
-    this.phase = "aiming";
-  }
-
   render(ctx: CanvasRenderingContext2D): void {
     drawBackdrop(ctx);
     drawField(ctx);
     drawGoal(ctx);
-    drawKeeper(ctx, this.level.keeper.x);
+    drawKeeper(ctx, this.keeper.x);
     drawWall(ctx, this.wall, this.level.wall.count);
 
     if (this.phase === "aiming") {
       drawAimZone(ctx, this.level.ball);
-      drawAimLine(ctx, this.aim.kicker, this.level.ball);
+      drawAimLine(ctx, this.aim.kicker, this.level.ball, kickDirection(this.level.ball, this.aim));
       drawKicker(ctx, this.aim.kicker);
       drawBall(ctx, { ...this.level.ball, z: 0.11 });
     } else {
       drawKicker(ctx, this.aim.kicker);
-      if (this.sim) drawBall(ctx, this.sim.p);
+      if (this.sim) {
+        drawTrail(ctx, this.sim.trail);
+        drawBall(ctx, this.sim.p);
+      }
     }
   }
 }

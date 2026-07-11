@@ -1,5 +1,5 @@
 import "./style.css";
-import { Game, type ShotResult } from "./game/game";
+import { Game, type ShotResult, type Wind } from "./game/game";
 import { CANVAS_H, CANVAS_W } from "./render/camera";
 import { starsForScore } from "./scoring/score";
 
@@ -51,7 +51,18 @@ const game = new Game({
   onHudChange(levelIdx: number, total: number) {
     $("#hud-level").textContent = `${levelIdx + 1}/${total}`;
   },
+  onWind(wind: Wind) {
+    // A seta aponta para onde o vento sopra, no referencial da tela
+    // (mundo +y aponta para baixo na tela, igual ao ângulo CSS).
+    $("#wind-arrow").style.transform = `rotate(${wind.dir}rad)`;
+    $("#wind-force").textContent = String(wind.force);
+    const strength = wind.force / 100;
+    $("#wind-arrow").style.color = strength > 0.6 ? "#f26d6d" : strength > 0.3 ? "#f2c94c" : "#6db3f2";
+  },
 });
+
+// Exposto para testes automatizados e depuração no console.
+(window as unknown as { __game: Game }).__game = game;
 
 $("#btn-play").addEventListener("click", () => {
   screenTitle.classList.add("hidden");
