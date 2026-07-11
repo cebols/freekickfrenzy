@@ -7,8 +7,8 @@ import { vec3 } from "./vec";
 export const AIM_CIRCLE_BEHIND = 4.0; // centro do semicírculo, metros atrás da bola
 export const AIM_CIRCLE_RADIUS = 4.2;
 
-const MIN_SPEED = 15; // m/s no chute mais fraco
-const MAX_SPEED = 27.5;
+const MIN_SPEED = 14.5; // m/s no chute mais fraco
+const MAX_SPEED = 29;
 
 // Quanto do desvio lateral da mira vira spin (curva de volta para o centro).
 // Calibrado junto com AIM_SENSITIVITY: a curva precisa ser vistosa, mas sem
@@ -19,13 +19,23 @@ const SPIN_AIM_K = 1.2;
 // real do chute — sem isso, miras levemente abertas saem larguíssimas.
 const AIM_SENSITIVITY = 0.65;
 
-// Elevação + topspin ("folha seca"): chute forte sobe por cima da
-// barreira e MERGULHA antes do travessão — o dip cresce com a força,
-// então potência máxima continua cabendo no gol. Chute fraco demais
-// não sobe o suficiente para passar a barreira.
-const LOFT_VZ_MIN = 5.2;
-const LOFT_VZ_MAX = 9.6;
+// Altura em "U" pela força:
+// - fraco  = cavadinha: sobe por cima da barreira e cai dentro
+// - médio  = chute firme e baixo — é o que corre risco de BARREIRA
+// - forte  = sobe e MERGULHA antes do travessão (topspin/folha seca)
+// O dip só entra acima de meia força e é escalado pela distância da
+// falta para petardos de longe não caírem antes do gol.
+const VZ_LOB = 6.9; // força 0
+const VZ_DRIVE = 5.6; // força no vale (mais rasteira)
+const VZ_SCREAMER = 9.6; // força máxima
+const VZ_VALLEY = 0.45; // onde fica o vale do "U"
 const DIP_ACCEL_MAX = 9.2; // m/s² extras para baixo na força máxima
+const DIP_REF_DIST = 18; // distância em que o dip vale o nominal
+
+function vzForPower(p: number): number {
+  if (p < VZ_VALLEY) return VZ_LOB + (VZ_DRIVE - VZ_LOB) * (p / VZ_VALLEY);
+  return VZ_DRIVE + (VZ_SCREAMER - VZ_DRIVE) * ((p - VZ_VALLEY) / (1 - VZ_VALLEY));
+}
 
 export interface AimState {
   /** Posição do batedor (pé de apoio) no chão, em metros. */
@@ -131,13 +141,17 @@ export function kickDirection(
 export function computeKick(ball: { x: number; y: number }, aim: AimState): Kick {
   const dir = kickDirection(ball, aim);
   const speed = MIN_SPEED + aim.power * (MAX_SPEED - MIN_SPEED);
-  const vz = LOFT_VZ_MIN + aim.power * (LOFT_VZ_MAX - LOFT_VZ_MIN);
+  const vz = vzForPower(aim.power);
   // Spin oposto ao desvio da mira: chute aberto curva de volta ao centro.
   const spinZ = Math.max(-1, Math.min(1, -SPIN_AIM_K * dir.lateral));
+
+  const goalDist = Math.hypot(ball.x, ball.y);
+  const dipScale = Math.max(0.55, Math.min(1.3, DIP_REF_DIST / goalDist));
+  const dipPower = Math.max(0, (aim.power - 0.5) / 0.5);
 
   return {
     v: vec3(dir.x * speed, dir.y * speed, vz),
     spinZ,
-    dip: DIP_ACCEL_MAX * aim.power,
+    dip: DIP_ACCEL_MAX * dipPower * dipScale,
   };
 }

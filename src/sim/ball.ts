@@ -40,6 +40,8 @@ export class BallSim {
   crossing: { x: number; z: number } | null = null;
   /** Amostras da trajetória para desenhar o rastro. */
   trail: Vec3[] = [];
+  /** Ângulo de rotação visual da bola (render). */
+  rot = 0;
 
   private t = 0;
   private stepCount = 0;
@@ -107,6 +109,9 @@ export class BallSim {
       }
     }
 
+    // Rotação visual: rolagem pela velocidade + contribuição do spin.
+    this.rot += (Math.hypot(this.v.x, this.v.y) * 0.55 + this.spinZ * 5) * dt;
+
     if (this.stepCount++ % 5 === 0) this.trail.push({ ...this.p });
     this.checkDone();
   }
@@ -133,19 +138,47 @@ export class BallSim {
     };
   }
 
+  /**
+   * Barreira com "hitbox de gente": a bola não morre — ricocheteia com
+   * direção, altura e spin novos conforme o ponto do corpo em que bate.
+   * No meio do peito volta mais; de raspão no ombro deflete e segue.
+   */
   private collideWall(prev: Vec3): void {
     const hit = this.crossPoint(prev, this.wall.y);
     if (!hit) return;
-    if (Math.abs(hit.x - this.wall.x) < this.wall.halfWidth + BALL_RADIUS && hit.z < WALL_HEIGHT) {
-      this.events.push("wall");
-      this.p.y = this.wall.y + 0.05;
-      this.p.x = hit.x;
-      this.p.z = Math.max(hit.z, BALL_RADIUS);
-      this.v.y = -this.v.y * 0.35;
-      this.v.x *= 0.5;
-      this.v.z = Math.abs(this.v.z) * 0.5; // pipoca para cima
-      this.spinZ *= 0.4;
+    if (Math.abs(hit.x - this.wall.x) >= this.wall.halfWidth + BALL_RADIUS || hit.z >= WALL_HEIGHT) {
+      return;
     }
+    this.events.push("wall");
+
+    // Em qual jogador (e em que ponto do corpo dele) a bola bateu?
+    const spacing = (this.wall.halfWidth * 2) / this.wall.count;
+    const rel = hit.x - (this.wall.x - this.wall.halfWidth);
+    const slot = Math.max(0, Math.min(this.wall.count - 1, Math.floor(rel / spacing)));
+    const playerCenter = this.wall.x - this.wall.halfWidth + spacing * (slot + 0.5);
+    // -1 (ombro esquerdo) .. 0 (peito) .. +1 (ombro direito)
+    const offset = Math.max(-1, Math.min(1, (hit.x - playerCenter) / (spacing / 2)));
+    const glancing = Math.abs(offset); // 0 = cheio, 1 = de raspão
+
+    const speedIn = Math.hypot(this.v.x, this.v.y);
+    this.p.x = hit.x;
+    this.p.z = Math.max(hit.z, BALL_RADIUS);
+
+    if (glancing > 0.62) {
+      // Raspão: a bola segue em frente, defletida para o lado do ombro.
+      this.p.y = this.wall.y - 0.05;
+      this.v.y *= 0.55;
+      this.v.x += Math.sign(offset) * speedIn * 0.35;
+      this.v.z *= 0.7;
+    } else {
+      // Bateu no corpo: volta, mas espirrando para o lado do impacto.
+      this.p.y = this.wall.y + 0.05;
+      this.v.y = -this.v.y * (0.2 + 0.25 * glancing);
+      this.v.x = Math.sign(offset || 1) * speedIn * (0.15 + 0.4 * glancing);
+      this.v.z = Math.abs(this.v.z) * 0.5 + speedIn * 0.06; // pipoca
+    }
+    // O impacto imprime efeito novo na bola.
+    this.spinZ = Math.max(-1, Math.min(1, this.spinZ * 0.3 + offset * 0.8));
   }
 
   private collideKeeper(prev: Vec3, keeperX: number): void {
@@ -263,8 +296,9 @@ export class BallSim {
       return;
     }
     // Lance morto: bola voltando do rebote ou já atrás do gol sem entrar —
-    // corta cedo para rearmar a cobrança rápido.
-    const deadRebound = this.t > 0.25 && this.v.y > 2.5;
+    // corta cedo para rearmar a cobrança rápido (espera baixar para não
+    // congelar a bola no meio do ar).
+    const deadRebound = this.t > 0.25 && this.v.y > 2.5 && this.p.z < 1.2;
     const behindGoal = this.p.y < -1.2;
     this.done =
       deadRebound ||

@@ -5,6 +5,8 @@ import type { WallPlacement } from "../levels/levels";
 
 const FIELD_TOP = GOAL_LINE_Y - 14;
 
+export type Mood = "neutral" | "grit" | "happy" | "sad" | "worried";
+
 export function drawBackdrop(ctx: CanvasRenderingContext2D): void {
   // Arquibancada
   ctx.fillStyle = "#7ecfd4";
@@ -17,6 +19,7 @@ export function drawBackdrop(ctx: CanvasRenderingContext2D): void {
       ctx.beginPath();
       ctx.arc(cx, cy, 7, 0, Math.PI * 2);
       ctx.fill();
+      ctx.fillStyle = ["#d44", "#46b", "#e90", "#7a3"][(i * 7 + row * 3) % 4];
       ctx.fillRect(cx - 8, cy + 6, 16, 12);
     }
   }
@@ -37,11 +40,19 @@ export function drawField(ctx: CanvasRenderingContext2D): void {
   ctx.fillStyle = grad;
   ctx.fillRect(0, FIELD_TOP, CANVAS_W, CANVAS_H - FIELD_TOP);
 
+  // faixas de grama
+  ctx.fillStyle = "rgba(255,255,255,0.05)";
+  for (let i = 0; i < 6; i++) {
+    const y1 = toScreen(0, i * 8).sy;
+    const y2 = toScreen(0, i * 8 + 4).sy;
+    ctx.fillRect(0, y1, CANVAS_W, y2 - y1);
+  }
+
   ctx.strokeStyle = "rgba(255,255,255,0.9)";
   ctx.lineWidth = 2;
 
   // Linha de fundo
-  line(ctx, -12, 0, 12, 0);
+  line(ctx, -14, 0, 14, 0);
   // Grande área (16,5 m × 40,32 m)
   rectWorld(ctx, -20.16, 0, 20.16, 16.5);
   // Pequena área (5,5 m × 18,32 m)
@@ -104,6 +115,38 @@ function arcWorld(
   ctx.stroke();
 }
 
+/** Alvo de ¼ de círculo num ângulo superior (no plano do gol). */
+function cornerTarget(
+  ctx: CanvasRenderingContext2D,
+  cornerX: number,
+  rIn: number,
+  rOut: number,
+  color: string,
+): void {
+  // Quarto voltado para dentro do gol: do eixo horizontal (em direção
+  // ao centro) até o eixo vertical (para baixo).
+  const inward = cornerX > 0 ? -1 : 1;
+  ctx.beginPath();
+  for (let i = 0; i <= 12; i++) {
+    const a = (Math.PI / 2) * (i / 12);
+    const x = cornerX + inward * rOut * Math.cos(a);
+    const z = GOAL_HEIGHT - rOut * Math.sin(a);
+    const p = toScreen(x, 0, z);
+    if (i === 0) ctx.moveTo(p.sx, p.sy);
+    else ctx.lineTo(p.sx, p.sy);
+  }
+  for (let i = 12; i >= 0; i--) {
+    const a = (Math.PI / 2) * (i / 12);
+    const x = cornerX + inward * rIn * Math.cos(a);
+    const z = GOAL_HEIGHT - rIn * Math.sin(a);
+    const p = toScreen(x, 0, z);
+    ctx.lineTo(p.sx, p.sy);
+  }
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
+
 export function drawGoal(ctx: CanvasRenderingContext2D): void {
   const tl = toScreen(-GOAL_HALF, 0, GOAL_HEIGHT);
   const br = toScreen(GOAL_HALF, 0, 0);
@@ -130,6 +173,12 @@ export function drawGoal(ctx: CanvasRenderingContext2D): void {
     ctx.stroke();
   }
 
+  // Alvos dos ângulos: ¼ interno vermelho, ¼ externo azul, translúcidos
+  for (const cx of [-GOAL_HALF, GOAL_HALF]) {
+    cornerTarget(ctx, cx, 0, 0.65, "rgba(226,50,50,0.42)");
+    cornerTarget(ctx, cx, 0.65, 1.25, "rgba(70,130,220,0.26)");
+  }
+
   // Traves e travessão
   ctx.strokeStyle = "#f8f8f8";
   ctx.lineWidth = 5;
@@ -143,60 +192,159 @@ export function drawGoal(ctx: CanvasRenderingContext2D): void {
   ctx.lineCap = "butt";
 }
 
-/** Bonequinho estilo flat: pés na posição (x, y) do chão. */
+interface FigureOpts {
+  shirt: string;
+  shorts: string;
+  scale?: number;
+  mood?: Mood;
+  armsUp?: boolean;
+  /** Fase da passada (0..1) para animar as pernas correndo. */
+  runPhase?: number;
+}
+
+/** Bonequinho flat com pernas, braços e carinha. Pés em (x, y) do chão. */
 function drawFigure(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
-  shirt: string,
-  shorts: string,
-  scale = 1,
+  opts: FigureOpts,
 ): void {
   const feet = toScreen(x, y);
-  const s = scale;
+  const s = opts.scale ?? 1;
+  const mood = opts.mood ?? "neutral";
+  const skin = "#f2c894";
   ctx.save();
   ctx.translate(feet.sx, feet.sy);
+  ctx.lineWidth = 1;
 
   // sombra
   ctx.fillStyle = "rgba(0,0,0,0.18)";
   ctx.beginPath();
-  ctx.ellipse(0, 0, 11 * s, 4 * s, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, 10 * s, 3.5 * s, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // pernas/calção
-  ctx.fillStyle = shorts;
-  ctx.fillRect(-6 * s, -14 * s, 12 * s, 9 * s);
+  // pernas (com passada de corrida opcional)
+  const stride = opts.runPhase != null ? Math.sin(opts.runPhase * Math.PI * 2) * 3.5 : 0;
+  ctx.fillStyle = skin;
+  ctx.fillRect(-4.5 * s + stride * s * 0.4, -11 * s, 3.2 * s, 11 * s);
+  ctx.fillRect(1.3 * s - stride * s * 0.4, -11 * s, 3.2 * s, 11 * s);
+  // chuteiras
+  ctx.fillStyle = "#222";
+  ctx.fillRect(-5 * s + stride * s * 0.4, -2.5 * s, 4.2 * s, 2.5 * s);
+  ctx.fillRect(0.8 * s - stride * s * 0.4, -2.5 * s, 4.2 * s, 2.5 * s);
+
+  // calção
+  ctx.fillStyle = opts.shorts;
+  ctx.fillRect(-6 * s, -16 * s, 12 * s, 6.5 * s);
+
+  // braços
+  ctx.fillStyle = skin;
+  if (opts.armsUp) {
+    ctx.fillRect(-9.5 * s, -38 * s, 3 * s, 13 * s);
+    ctx.fillRect(6.5 * s, -38 * s, 3 * s, 13 * s);
+  } else {
+    ctx.fillRect(-9.5 * s, -27 * s, 3 * s, 11 * s);
+    ctx.fillRect(6.5 * s, -27 * s, 3 * s, 11 * s);
+  }
+
   // camisa
-  ctx.fillStyle = shirt;
-  ctx.fillRect(-8 * s, -28 * s, 16 * s, 15 * s);
+  ctx.fillStyle = opts.shirt;
+  ctx.fillRect(-7 * s, -28 * s, 14 * s, 13 * s);
+  ctx.strokeStyle = "rgba(0,0,0,0.25)";
+  ctx.strokeRect(-7 * s, -28 * s, 14 * s, 13 * s);
+
   // cabeça
-  ctx.fillStyle = "#f2c894";
+  ctx.fillStyle = skin;
   ctx.beginPath();
-  ctx.arc(0, -33 * s, 7 * s, 0, Math.PI * 2);
+  ctx.arc(0, -34 * s, 6.5 * s, 0, Math.PI * 2);
   ctx.fill();
   // cabelo
   ctx.fillStyle = "#8a5a2b";
   ctx.beginPath();
-  ctx.arc(0, -35 * s, 7 * s, Math.PI, Math.PI * 2);
+  ctx.arc(0, -35.5 * s, 6.5 * s, Math.PI, Math.PI * 2);
   ctx.fill();
+
+  // rosto
+  ctx.fillStyle = "#222";
+  ctx.beginPath();
+  ctx.arc(-2.2 * s, -34.5 * s, 0.9 * s, 0, Math.PI * 2);
+  ctx.arc(2.2 * s, -34.5 * s, 0.9 * s, 0, Math.PI * 2);
+  ctx.fill();
+  switch (mood) {
+    case "grit": {
+      // careta de dentes cerrados (a clássica da barreira)
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(-2.6 * s, -31.5 * s, 5.2 * s, 2.2 * s);
+      ctx.strokeStyle = "#222";
+      ctx.strokeRect(-2.6 * s, -31.5 * s, 5.2 * s, 2.2 * s);
+      ctx.beginPath();
+      ctx.moveTo(0, -31.5 * s);
+      ctx.lineTo(0, -29.3 * s);
+      ctx.stroke();
+      break;
+    }
+    case "happy": {
+      ctx.strokeStyle = "#222";
+      ctx.beginPath();
+      ctx.arc(0, -31.5 * s, 2.4 * s, 0.15 * Math.PI, 0.85 * Math.PI);
+      ctx.stroke();
+      break;
+    }
+    case "sad": {
+      ctx.strokeStyle = "#222";
+      ctx.beginPath();
+      ctx.arc(0, -28.5 * s, 2.4 * s, 1.15 * Math.PI, 1.85 * Math.PI);
+      ctx.stroke();
+      break;
+    }
+    case "worried": {
+      ctx.beginPath();
+      ctx.arc(0, -30.5 * s, 1.3 * s, 0, Math.PI * 2);
+      ctx.strokeStyle = "#222";
+      ctx.stroke();
+      break;
+    }
+    default: {
+      ctx.strokeStyle = "#222";
+      ctx.beginPath();
+      ctx.moveTo(-1.8 * s, -30.8 * s);
+      ctx.lineTo(1.8 * s, -30.8 * s);
+      ctx.stroke();
+    }
+  }
 
   ctx.restore();
 }
 
-export function drawWall(ctx: CanvasRenderingContext2D, wall: WallPlacement, count: number): void {
-  const spacing = (wall.halfWidth * 2) / count;
-  for (let i = 0; i < count; i++) {
+export function drawWall(ctx: CanvasRenderingContext2D, wall: WallPlacement): void {
+  const spacing = (wall.halfWidth * 2) / wall.count;
+  for (let i = 0; i < wall.count; i++) {
     const x = wall.x - wall.halfWidth + spacing * (i + 0.5);
-    drawFigure(ctx, x, wall.y, "#d42a2a", "#a51f1f", 0.9);
+    drawFigure(ctx, x, wall.y, { shirt: "#d42a2a", shorts: "#a51f1f", scale: 0.9, mood: "grit" });
   }
 }
 
-export function drawKeeper(ctx: CanvasRenderingContext2D, keeperX: number): void {
-  drawFigure(ctx, keeperX, KEEPER_DEPTH, "#888", "#666", 0.85);
+export function drawKeeper(ctx: CanvasRenderingContext2D, keeperX: number, mood: Mood): void {
+  drawFigure(ctx, keeperX, KEEPER_DEPTH, {
+    shirt: "#888",
+    shorts: "#555",
+    scale: 0.88,
+    mood,
+    armsUp: mood === "worried",
+  });
 }
 
-export function drawKicker(ctx: CanvasRenderingContext2D, pos: { x: number; y: number }): void {
-  drawFigure(ctx, pos.x, pos.y, "#2a9fd4", "#1c7aa5", 1);
+export function drawKicker(
+  ctx: CanvasRenderingContext2D,
+  pos: { x: number; y: number },
+  runPhase?: number,
+): void {
+  drawFigure(ctx, pos.x, pos.y, {
+    shirt: "#2a9fd4",
+    shorts: "#1c7aa5",
+    mood: runPhase != null ? "grit" : "neutral",
+    runPhase,
+  });
 }
 
 export function drawAimZone(
@@ -265,6 +413,7 @@ export function drawTrail(
 export function drawBall(
   ctx: CanvasRenderingContext2D,
   p: { x: number; y: number; z: number },
+  rot = 0,
 ): void {
   const ground = toScreen(p.x, p.y);
   const ball = toScreen(p.x, p.y, p.z);
@@ -275,7 +424,7 @@ export function drawBall(
   const shadowScale = Math.max(0.35, 1 - p.z * 0.06);
   ctx.fillStyle = "rgba(0,0,0,0.25)";
   ctx.beginPath();
-  ctx.ellipse(ground.sx, ground.sy, 7 * shadowScale, 3.5 * shadowScale, 0, 0, Math.PI * 2);
+  ctx.ellipse(ground.sx, ground.sy, 7 * shadowScale, 3 * shadowScale, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // bola
@@ -286,9 +435,23 @@ export function drawBall(
   ctx.arc(ball.sx, ball.sy, r, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
-  // gomos
-  ctx.fillStyle = "#222";
+
+  // gomos girando (recortados pelo círculo da bola)
+  ctx.save();
   ctx.beginPath();
-  ctx.arc(ball.sx, ball.sy, r * 0.32, 0, Math.PI * 2);
+  ctx.arc(ball.sx, ball.sy, r - 0.8, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = "#222";
+  for (let i = 0; i < 3; i++) {
+    const a = rot + (i * Math.PI * 2) / 3;
+    const gx = ball.sx + Math.cos(a) * r * 0.62;
+    const gy = ball.sy + Math.sin(a) * r * 0.62;
+    ctx.beginPath();
+    ctx.arc(gx, gy, r * 0.34, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.arc(ball.sx, ball.sy, r * 0.2, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
 }

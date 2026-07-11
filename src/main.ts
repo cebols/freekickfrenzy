@@ -1,19 +1,26 @@
 import "./style.css";
 import { Game, type ShotResult, type Wind } from "./game/game";
+import { LEVELS } from "./levels/levels";
 import { CANVAS_H, CANVAS_W } from "./render/camera";
 import { starsForScore } from "./scoring/score";
+import { loadProgress, saveGoal, type Progress } from "./persist/storage";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
 const ctx = canvas.getContext("2d")!;
 
 const $ = <T extends HTMLElement>(sel: string): T => document.querySelector<T>(sel)!;
 const screenTitle = $("#screen-title");
+const screenLevels = $("#screen-levels");
 const screenResult = $("#screen-result");
 const hud = $("#hud");
 const toast = $("#toast");
 const resultTitle = $("#result-title");
+const resultStars = $("#result-stars");
 const resultDetail = $("#result-detail");
 const btnNext = $<HTMLButtonElement>("#btn-next");
+const levelsGrid = $("#levels-grid");
+
+let progress: Progress = loadProgress();
 
 const MISS_LABEL: Record<string, string> = {
   wall: "Na barreira!",
@@ -34,15 +41,40 @@ function showToast(text: string): void {
 
 function starLabel(score: number): string {
   const stars = starsForScore(score);
-  if (stars === 4) return "🏆 PLATINA!";
-  return "⭐".repeat(stars);
+  return stars === 4 ? "🏆" : "⭐".repeat(stars);
+}
+
+function showLevels(): void {
+  levelsGrid.innerHTML = "";
+  LEVELS.forEach((level, i) => {
+    const btn = document.createElement("button");
+    btn.className = "level-btn";
+    const locked = i > progress.unlocked;
+    btn.disabled = locked;
+    const best = progress.best[i];
+    btn.innerHTML = `<span>${locked ? "🔒" : i + 1}</span><span class="stars">${
+      best ? starLabel(best) + ` ${best}` : ""
+    }</span>`;
+    btn.title = level.name;
+    btn.addEventListener("click", () => {
+      screenLevels.classList.add("hidden");
+      hud.classList.remove("hidden");
+      game.loadLevel(i);
+    });
+    levelsGrid.appendChild(btn);
+  });
+  screenLevels.classList.remove("hidden");
 }
 
 const game = new Game({
-  onGoal(result: ShotResult, _levelIdx: number, isLast: boolean) {
+  onGoal(result: ShotResult, levelIdx: number, isLast: boolean) {
+    progress = saveGoal(levelIdx, result.score);
     resultTitle.textContent = "GOL!";
-    resultDetail.textContent = `Score ${result.score}/100 — ${starLabel(result.score)}`;
-    btnNext.textContent = isLast ? "Jogar de novo" : "Próxima fase";
+    resultStars.textContent = starLabel(result.score);
+    resultDetail.textContent = `Score ${result.score}/100${
+      result.score >= 100 ? " — PLATINA!" : ""
+    }`;
+    btnNext.textContent = isLast ? "Fases" : "Próxima";
     screenResult.classList.remove("hidden");
   },
   onMiss(result: ShotResult) {
@@ -66,8 +98,7 @@ const game = new Game({
 
 $("#btn-play").addEventListener("click", () => {
   screenTitle.classList.add("hidden");
-  hud.classList.remove("hidden");
-  game.start();
+  showLevels();
 });
 
 $("#btn-retry").addEventListener("click", () => {
@@ -75,9 +106,20 @@ $("#btn-retry").addEventListener("click", () => {
   game.retryLevel();
 });
 
+$("#btn-levels").addEventListener("click", () => {
+  screenResult.classList.add("hidden");
+  hud.classList.add("hidden");
+  showLevels();
+});
+
 btnNext.addEventListener("click", () => {
   screenResult.classList.add("hidden");
-  game.nextLevel();
+  if (game.levelIdx === LEVELS.length - 1) {
+    hud.classList.add("hidden");
+    showLevels();
+  } else {
+    game.nextLevel();
+  }
 });
 
 // Posição do ponteiro em coordenadas do canvas (o CSS escala o elemento).

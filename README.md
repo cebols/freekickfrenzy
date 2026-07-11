@@ -42,6 +42,7 @@ src/
 - [x] **Etapa 1 — core jogável**: mira, chute, voo 3D, gol/defesa/trave
 - [x] **Etapa 2 — física completa**: efeito (Magnus), vento randômico com
       indicador, traves como cilindros, goleiro reativo com skill por fase
-- [ ] **Etapa 3 — meta-jogo**: alvos ¼ de círculo nos ângulos, seleção de
-      fases com estrelas persistidas (localStorage)
-- [ ] **Etapa 4 — polish**: visual caprichado, replay do lance, sons, touch
+- [x] **Etapa 3 — meta-jogo**: alvos ¼ de círculo nos ângulos, 9 fases,
+      seleção de fases com estrelas persistidas (localStorage)
+- [ ] **Etapa 4 — polish**: bonecos articulados com expressões e bola
+      girando ✔; replay do lance, sons, partículas/torcida (pendentes)

@@ -26,7 +26,7 @@ export const SPIN_SURFACE_KICK = 1.6;
 export const WIND_MAX_SPEED = 15;
 // ...e além do arrasto relativo, empurra a bola diretamente — com
 // vendaval a trajetória fica cômica de propósito.
-export const WIND_PUSH_K = 0.9;
+export const WIND_PUSH_K = 1.5;
 
 // Barreira
 export const WALL_DISTANCE = 9.15; // distância regulamentar da bola

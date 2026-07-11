@@ -31,6 +31,7 @@ import {
   drawKicker,
   drawTrail,
   drawWall,
+  type Mood,
 } from "../render/renderer";
 
 export type Phase = "title" | "aiming" | "runup" | "flight" | "result";
@@ -59,7 +60,7 @@ export interface GameCallbacks {
 }
 
 const MISS_RESET_DELAY = 0.8; // segundos até rearmar a cobrança
-const RUN_SPEED = 7; // m/s da corrida do batedor até a bola
+const RUN_SPEED = 11; // m/s da corrida do batedor até a bola
 
 export class Game {
   phase: Phase = "title";
@@ -126,6 +127,7 @@ export class Game {
   private newAttempt(): void {
     this.sim = null;
     this.pendingKick = null;
+    this.runPhase = 0;
     this.aim = this.restAim();
     this.keeper.reset(this.level.keeper);
     this.wind = this.rollWind();
@@ -170,7 +172,11 @@ export class Game {
     }
   }
 
+  /** Progresso da passada para animar as pernas na corrida. */
+  runPhase = 0;
+
   private updateRunup(dt: number): void {
+    this.runPhase += dt * 3.2;
     const k = this.aim.kicker;
     const dx = this.level.ball.x - k.x;
     const dy = this.level.ball.y - k.y;
@@ -208,25 +214,35 @@ export class Game {
     }
   }
 
+  private keeperMood(): Mood {
+    if (this.phase === "flight") return "worried";
+    if (this.phase === "result" && this.sim) {
+      if (this.sim.scored) return "sad";
+      if (this.sim.events.includes("keeper")) return "happy";
+    }
+    return "neutral";
+  }
+
   render(ctx: CanvasRenderingContext2D): void {
     drawBackdrop(ctx);
     drawField(ctx);
     drawGoal(ctx);
-    drawKeeper(ctx, this.keeper.x);
-    drawWall(ctx, this.wall, this.level.wall.count);
+    drawKeeper(ctx, this.keeper.x, this.keeperMood());
+    drawWall(ctx, this.wall);
 
     if (this.phase === "aiming") {
       drawAimZone(ctx, this.level.ball, this.aimCenter);
       drawAimLine(ctx, this.aim.kicker, this.level.ball, kickDirection(this.level.ball, this.aim));
       drawKicker(ctx, this.aim.kicker);
       drawBall(ctx, { ...this.level.ball, z: 0.11 });
+    } else if (this.phase === "runup") {
+      drawKicker(ctx, this.aim.kicker, this.runPhase);
+      drawBall(ctx, { ...this.level.ball, z: 0.11 });
     } else {
       drawKicker(ctx, this.aim.kicker);
-      if (this.phase === "runup") {
-        drawBall(ctx, { ...this.level.ball, z: 0.11 });
-      } else if (this.sim) {
+      if (this.sim) {
         drawTrail(ctx, this.sim.trail);
-        drawBall(ctx, this.sim.p);
+        drawBall(ctx, this.sim.p, this.sim.rot);
       }
     }
   }

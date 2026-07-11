@@ -136,6 +136,48 @@ body {
   gap: 16px;
 }
 
+/* ---- seleção de fases ---- */
+#levels-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 82%;
+}
+
+.level-btn {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 6px;
+  border: none;
+  border-radius: 12px;
+  background: #ffe23d;
+  color: #333;
+  font-weight: bold;
+  font-size: 20px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #b89b00;
+}
+
+.level-btn .stars {
+  font-size: 12px;
+  min-height: 14px;
+}
+
+.level-btn:disabled {
+  background: #9aa;
+  box-shadow: 0 3px 0 #667;
+  color: #556;
+  cursor: default;
+}
+
+#result-stars {
+  font-size: 36px;
+  letter-spacing: 4px;
+}
+
 /* ---- toast (miss feedback) ---- */
 .toast {
   left: 50%;
