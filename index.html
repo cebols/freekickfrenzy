@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>⚽</text></svg>" />
+    <title>Free Kick Frenzy</title>
+  </head>
+  <body>
+    <div id="stage">
+      <canvas id="game" width="480" height="600"></canvas>
+
+      <div id="hud" class="overlay hidden">
+        <div class="hud-item"><span class="hud-label">Fase</span><span id="hud-level">1/4</span></div>
+        <div class="hud-item"><span class="hud-label">Score</span><span id="hud-score">0</span></div>
+        <div class="hud-item"><span class="hud-label">Vento</span><span id="hud-wind">—</span></div>
+      </div>
+
+      <div id="screen-title" class="overlay screen">
+        <h1>Free Kick Frenzy</h1>
+        <p class="rules">
+          Mova o jogador dentro do semicírculo com o mouse<br />
+          e clique para chutar.<br /><br />
+          Mire nos ângulos superiores para pontuar mais!
+        </p>
+        <button id="btn-play" class="btn">Jogar</button>
+      </div>
+
+      <div id="screen-result" class="overlay screen hidden">
+        <h2 id="result-title">GOL!</h2>
+        <p id="result-detail"></p>
+        <div class="btn-row">
+          <button id="btn-retry" class="btn btn-secondary">Repetir</button>
+          <button id="btn-next" class="btn">Próxima fase</button>
+        </div>
+      </div>
+
+      <div id="toast" class="overlay toast hidden"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
