@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>⚽</text></svg>" />
     <title>Free Kick Frenzy</title>
-    <script type="module" crossorigin src="./assets/index-CP0D6VFz.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-CMP5a6wo.css">
+    <script type="module" crossorigin src="./assets/index-CvEfalrQ.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-D5vhTYjh.css">
   </head>
   <body>
     <div id="stage">
@@ -24,19 +24,26 @@
       <div id="screen-title" class="overlay screen">
         <h1>Free Kick Frenzy</h1>
         <p class="rules">
-          Mova o jogador dentro do semicírculo com o mouse<br />
-          e clique para chutar.<br /><br />
+          Mire dentro do semicírculo (arraste no celular)<br />
+          e solte para chutar.<br /><br />
           Mire nos ângulos superiores para pontuar mais!
         </p>
         <button id="btn-play" class="btn">Jogar</button>
       </div>
 
+      <div id="screen-levels" class="overlay screen hidden">
+        <h2>Fases</h2>
+        <div id="levels-grid"></div>
+      </div>
+
       <div id="screen-result" class="overlay screen hidden">
         <h2 id="result-title">GOL!</h2>
+        <p id="result-stars"></p>
         <p id="result-detail"></p>
         <div class="btn-row">
           <button id="btn-retry" class="btn btn-secondary">Repetir</button>
-          <button id="btn-next" class="btn">Próxima fase</button>
+          <button id="btn-levels" class="btn btn-secondary">Fases</button>
+          <button id="btn-next" class="btn">Próxima</button>
         </div>
       </div>
 
