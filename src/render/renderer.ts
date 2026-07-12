@@ -218,15 +218,15 @@ export function drawGoal(
   ctx.fillRect(tl.sx, tl.sy, w, h);
   ctx.strokeStyle = "rgba(255,255,255,0.55)";
   ctx.lineWidth = 1;
-  for (let i = 0; i <= 14; i++) {
-    const x = tl.sx + (w * i) / 14;
+  for (let i = 0; i <= 20; i++) {
+    const x = tl.sx + (w * i) / 20;
     ctx.beginPath();
     ctx.moveTo(x, tl.sy);
     ctx.lineTo(x, br.sy);
     ctx.stroke();
   }
-  for (let i = 0; i <= 6; i++) {
-    const y = tl.sy + (h * i) / 6;
+  for (let i = 0; i <= 9; i++) {
+    const y = tl.sy + (h * i) / 9;
     ctx.beginPath();
     ctx.moveTo(tl.sx, y);
     ctx.lineTo(br.sx, y);
@@ -248,8 +248,8 @@ export function drawGoal(
 
   // Alvos dos ângulos: ¼ interno vermelho, ¼ externo azul, translúcidos
   for (const cx of [-GOAL_HALF, GOAL_HALF]) {
-    cornerTarget(ctx, cx, 0, 0.65, "rgba(226,50,50,0.42)");
-    cornerTarget(ctx, cx, 0.65, 1.25, "rgba(70,130,220,0.26)");
+    cornerTarget(ctx, cx, 0, 0.85, "rgba(226,50,50,0.42)");
+    cornerTarget(ctx, cx, 0.85, 1.6, "rgba(70,130,220,0.26)");
   }
 
   // Traves e travessão
@@ -415,7 +415,6 @@ export function drawWall(
       scale: 0.9,
       mood: "grit",
       liftPx: jumpZ * 21,
-      armsUp: jumpZ > 0.1,
     });
   }
 }
@@ -454,11 +453,8 @@ export function drawAimZone(
   ball: { x: number; y: number },
   c: { x: number; y: number },
 ): void {
-  const dist = Math.hypot(ball.x, ball.y);
-  const nx = -ball.x / dist;
-  const ny = -ball.y / dist;
-  // ângulo da direção ao gol; o semicírculo fica no lado oposto
-  const base = Math.atan2(ny, nx);
+  // Mesma orientação do clamp: meia-lua no lado oposto à bola.
+  const base = Math.atan2(ball.y - c.y, ball.x - c.x);
 
   ctx.beginPath();
   for (let i = 0; i <= 32; i++) {
@@ -512,6 +508,26 @@ export function drawTrail(
   }
 }
 
+/** Pentágono preenchido com rotação. */
+function pentagon(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  r: number,
+  rot: number,
+): void {
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const a = rot + (i * Math.PI * 2) / 5 - Math.PI / 2;
+    const x = cx + Math.cos(a) * r;
+    const y = cy + Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
 export function drawBall(
   ctx: CanvasRenderingContext2D,
   p: { x: number; y: number; z: number },
@@ -519,41 +535,49 @@ export function drawBall(
 ): void {
   const ground = toScreen(p.x, p.y);
   const ball = toScreen(p.x, p.y, p.z);
-  // A bola "encolhe" levemente quanto mais alta, para dar leitura de altura.
-  const r = Math.max(4.5, 7 - p.z * 0.35);
+  // Menor e clássica: a leitura de altura vem da distância até a sombra.
+  const r = Math.max(3, 4.2 - p.z * 0.12);
 
   // sombra
   const shadowScale = Math.max(0.35, 1 - p.z * 0.06);
   ctx.fillStyle = "rgba(0,0,0,0.25)";
   ctx.beginPath();
-  ctx.ellipse(ground.sx, ground.sy, 7 * shadowScale, 3 * shadowScale, 0, 0, Math.PI * 2);
+  ctx.ellipse(ground.sx, ground.sy, 4.2 * shadowScale, 2 * shadowScale, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // bola
+  // couro branco
   ctx.fillStyle = "#fff";
-  ctx.strokeStyle = "#222";
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "#1a1a1a";
+  ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.arc(ball.sx, ball.sy, r, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
-  // gomos girando (recortados pelo círculo da bola)
+  // padrão clássico: pentágono central + gomos na borda + costuras,
+  // tudo girando junto (recortado pelo círculo do couro)
   ctx.save();
   ctx.beginPath();
-  ctx.arc(ball.sx, ball.sy, r - 0.8, 0, Math.PI * 2);
+  ctx.arc(ball.sx, ball.sy, r - 0.5, 0, Math.PI * 2);
   ctx.clip();
-  ctx.fillStyle = "#222";
-  for (let i = 0; i < 3; i++) {
-    const a = rot + (i * Math.PI * 2) / 3;
-    const gx = ball.sx + Math.cos(a) * r * 0.62;
-    const gy = ball.sy + Math.sin(a) * r * 0.62;
-    ctx.beginPath();
-    ctx.arc(gx, gy, r * 0.34, 0, Math.PI * 2);
-    ctx.fill();
+  ctx.fillStyle = "#1a1a1a";
+  pentagon(ctx, ball.sx, ball.sy, r * 0.42, rot);
+  // gomos parciais na borda, alinhados aos vértices do pentágono
+  for (let i = 0; i < 5; i++) {
+    const a = rot + (i * Math.PI * 2) / 5 - Math.PI / 2;
+    const gx = ball.sx + Math.cos(a) * r * 1.05;
+    const gy = ball.sy + Math.sin(a) * r * 1.05;
+    pentagon(ctx, gx, gy, r * 0.42, rot + Math.PI / 5);
   }
-  ctx.beginPath();
-  ctx.arc(ball.sx, ball.sy, r * 0.2, 0, Math.PI * 2);
-  ctx.fill();
+  // costuras dos vértices até os gomos
+  ctx.strokeStyle = "rgba(26,26,26,0.5)";
+  ctx.lineWidth = 0.7;
+  for (let i = 0; i < 5; i++) {
+    const a = rot + (i * Math.PI * 2) / 5 - Math.PI / 2 + Math.PI / 5;
+    ctx.beginPath();
+    ctx.moveTo(ball.sx + Math.cos(a) * r * 0.42, ball.sy + Math.sin(a) * r * 0.42);
+    ctx.lineTo(ball.sx + Math.cos(a) * r, ball.sy + Math.sin(a) * r);
+    ctx.stroke();
+  }
   ctx.restore();
 }

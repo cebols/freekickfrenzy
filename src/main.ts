@@ -103,10 +103,18 @@ const game = new Game({
   onWind(wind: Wind) {
     // A seta aponta para onde o vento sopra, no referencial da tela
     // (mundo +y aponta para baixo na tela, igual ao ângulo CSS).
-    $("#wind-arrow").style.transform = `rotate(${wind.dir}rad)`;
+    const arrow = $("#wind-arrow");
+    arrow.style.transform = `rotate(${wind.dir}rad)`;
+    if (wind.force === 0) {
+      $("#wind-force").textContent = "—";
+      arrow.style.color = "#9ab";
+      arrow.style.opacity = "0.4";
+      return;
+    }
+    arrow.style.opacity = "1";
     $("#wind-force").textContent = String(wind.force);
     const strength = wind.force / 100;
-    $("#wind-arrow").style.color = strength > 0.6 ? "#f26d6d" : strength > 0.3 ? "#f2c94c" : "#6db3f2";
+    arrow.style.color = strength > 0.6 ? "#f26d6d" : strength > 0.3 ? "#f2c94c" : "#6db3f2";
   },
   onEvent(event) {
     if (event === "post" || event === "crossbar") sfx.post();

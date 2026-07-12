@@ -8,7 +8,7 @@ export const AIM_CIRCLE_BEHIND = 4.0; // centro do semicírculo, metros atrás d
 export const AIM_CIRCLE_RADIUS = 4.2;
 
 const MIN_SPEED = 14.5; // m/s no chute mais fraco
-const MAX_SPEED = 29;
+const MAX_SPEED = 34; // petardo de verdade na força máxima
 
 // Quanto do desvio lateral da mira vira spin (curva de volta para o centro).
 // Calibrado junto com AIM_SENSITIVITY: a curva precisa ser vistosa, mas sem
@@ -25,9 +25,9 @@ const AIM_SENSITIVITY = 0.65;
 // - forte  = sobe e MERGULHA antes do travessão (topspin/folha seca)
 // O dip só entra acima de meia força e é escalado pela distância da
 // falta para petardos de longe não caírem antes do gol.
-const VZ_LOB = 6.9; // força 0
-const VZ_DRIVE = 5.6; // força no vale (mais rasteira)
-const VZ_SCREAMER = 9.6; // força máxima
+const VZ_LOB = 9.0; // força 0: cavadinha bem alta — o EFEITO é que traz de volta
+const VZ_DRIVE = 5.8; // força no vale (mais rasteira)
+const VZ_SCREAMER = 10.8; // força máxima (passa até por barreira pulando)
 const VZ_VALLEY = 0.45; // onde fica o vale do "U"
 const DIP_ACCEL_MAX = 9.2; // m/s² extras para baixo na força máxima
 const DIP_REF_DIST = 18; // distância em que o dip vale o nominal
@@ -69,13 +69,15 @@ export function clampToAimCircle(
   let dx = point.x - c.x;
   let dy = point.y - c.y;
 
-  // Normal do semiplano: direção bola → gol (gol é a origem).
-  const toGoal = { x: -ball.x, y: -ball.y };
-  const tgLen = Math.hypot(toGoal.x, toGoal.y);
-  const nx = toGoal.x / tgLen;
-  const ny = toGoal.y / tgLen;
+  // Normal do semiplano: direção centro → bola. Como o centro pode estar
+  // deslocado pelo clamp de tela (faltas de canto), orientar pela bola
+  // mantém a meia-lua inteira utilizável em qualquer posição.
+  const toBall = { x: ball.x - c.x, y: ball.y - c.y };
+  const tbLen = Math.hypot(toBall.x, toBall.y) || 1;
+  const nx = toBall.x / tbLen;
+  const ny = toBall.y / tbLen;
 
-  // Não deixa o batedor passar do diâmetro do semicírculo (lado do gol).
+  // Não deixa o batedor passar do diâmetro do semicírculo (lado da bola).
   const forward = dx * nx + dy * ny;
   if (forward > 0) {
     dx -= forward * nx;
@@ -148,10 +150,13 @@ export function computeKick(ball: { x: number; y: number }, aim: AimState): Kick
   const goalDist = Math.hypot(ball.x, ball.y);
   const dipScale = Math.max(0.55, Math.min(1.3, DIP_REF_DIST / goalDist));
   const dipPower = Math.max(0, (aim.power - 0.5) / 0.5);
+  // Efeito também derruba a bola (Magnus com componente vertical):
+  // a cavadinha alta só cai dentro do gol se tiver curva.
+  const spinDip = Math.abs(spinZ) * 2.6;
 
   return {
     v: vec3(dir.x * speed, dir.y * speed, vz),
     spinZ,
-    dip: DIP_ACCEL_MAX * dipPower * dipScale,
+    dip: DIP_ACCEL_MAX * dipPower * dipScale + spinDip,
   };
 }

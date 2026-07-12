@@ -10,7 +10,7 @@ import {
   type AimState,
   type Kick,
 } from "../sim/kick";
-import { WIND_MAX_SPEED } from "../sim/world";
+import { WIND_MAX_SPEED, WIND_MIN_FORCE } from "../sim/world";
 import { scoreGoal } from "../scoring/score";
 import {
   CANVAS_H,
@@ -172,7 +172,9 @@ export class Game {
 
   private rollWind(): Wind {
     const dir = Math.random() * Math.PI * 2;
-    const force = Math.round(Math.random() * this.level.windMax);
+    // Abaixo do piso é calmaria: ou o vento importa, ou não existe.
+    const raw = Math.round(Math.random() * this.level.windMax);
+    const force = raw < WIND_MIN_FORCE ? 0 : raw;
     const speed = (force / 100) * WIND_MAX_SPEED;
     return {
       dir,
@@ -351,14 +353,16 @@ export class Game {
     drawKeeper(ctx, this.keeper.x, this.keeperMood(), diving ? Math.sign(this.keeper.vx) : 0);
     drawWall(ctx, this.wall, this.phase === "flight" ? this.wallJumpZ() : 0);
 
+    // A bola fica mais perto do gol que o batedor: pinta antes dele
+    // (painter's algorithm) para não aparecer sobre a cabeça do boneco.
     if (this.phase === "aiming") {
       drawAimZone(ctx, this.level.ball, this.aimCenter);
       drawAimLine(ctx, this.aim.kicker, this.level.ball, kickDirection(this.level.ball, this.aim));
+      drawBall(ctx, { ...this.level.ball, z: 0.11 });
       drawKicker(ctx, this.aim.kicker);
-      drawBall(ctx, { ...this.level.ball, z: 0.11 });
     } else if (this.phase === "runup") {
-      drawKicker(ctx, this.aim.kicker, this.runPhase);
       drawBall(ctx, { ...this.level.ball, z: 0.11 });
+      drawKicker(ctx, this.aim.kicker, this.runPhase);
     } else {
       drawKicker(ctx, this.aim.kicker);
       if (this.sim) {

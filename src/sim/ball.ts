@@ -2,13 +2,20 @@ import type { Vec3 } from "./vec";
 import { length } from "./vec";
 import {
   BALL_RADIUS,
-  DRAG_K,
+  DRAG_CRISIS_END,
+  DRAG_CRISIS_START,
+  DRAG_K_HIGH,
+  DRAG_K_LOW,
   GOAL_HALF,
   GOAL_HEIGHT,
   GRAVITY,
   KEEPER_DEPTH,
   KEEPER_HALF_REACH,
   KEEPER_HEIGHT,
+  KNUCKLE_ACCEL,
+  KNUCKLE_FREQ,
+  KNUCKLE_MIN_SPEED,
+  KNUCKLE_SPIN_MAX,
   MAGNUS_K,
   NET_DEPTH,
   POST_RADIUS,
@@ -65,16 +72,34 @@ export class BallSim {
 
     const prev = { ...this.p };
 
-    // Arrasto relativo ao ar: o vento entra como velocidade do ar.
+    // Arrasto relativo ao ar (vento = velocidade do ar), com "crise de
+    // arrasto": em alta velocidade o coeficiente cai e o chute carrega.
     const rx = this.v.x - this.wind.x;
     const ry = this.v.y - this.wind.y;
     const rz = this.v.z;
     const rel = Math.hypot(rx, ry, rz);
-    this.v.x -= DRAG_K * rel * rx * dt;
-    this.v.y -= DRAG_K * rel * ry * dt;
+    const crisis = Math.max(0, Math.min(1, (rel - DRAG_CRISIS_START) / (DRAG_CRISIS_END - DRAG_CRISIS_START)));
+    const dragK = DRAG_K_LOW + (DRAG_K_HIGH - DRAG_K_LOW) * crisis;
+    this.v.x -= dragK * rel * rx * dt;
+    this.v.y -= dragK * rel * ry * dt;
     // Topspin (dip) só age com a bola no ar.
     const airborne = this.p.z > BALL_RADIUS * 1.5;
-    this.v.z -= (GRAVITY + (airborne ? this.dip : 0) + DRAG_K * rel * rz) * dt;
+    this.v.z -= (GRAVITY + (airborne ? this.dip : 0) + dragK * rel * rz) * dt;
+
+    // Knuckleball: sem spin e em alta velocidade, a esteira de ar faz a
+    // bola serpentear de leve para os lados.
+    const speedXY0 = Math.hypot(this.v.x, this.v.y);
+    if (
+      airborne &&
+      Math.abs(this.spinZ) < KNUCKLE_SPIN_MAX &&
+      speedXY0 > KNUCKLE_MIN_SPEED
+    ) {
+      const wob = Math.sin(this.t * KNUCKLE_FREQ) * KNUCKLE_ACCEL;
+      const px = -this.v.y / speedXY0;
+      const py = this.v.x / speedXY0;
+      this.v.x += px * wob * dt;
+      this.v.y += py * wob * dt;
+    }
 
     // Vento empurrando diretamente (além do arrasto relativo): com
     // vendaval, a bola faz trajetórias cômicas — é feature.
@@ -102,8 +127,14 @@ export class BallSim {
       this.holdInNet(dt);
     }
 
-    // Rotação visual: rolagem pela velocidade + contribuição do spin.
-    this.rot += (Math.hypot(this.v.x, this.v.y) * 0.55 + this.spinZ * 5) * dt;
+    // Rotação visual: com efeito, gira na direção do efeito; sem efeito,
+    // rolagem para frente pela velocidade.
+    const speedXY = Math.hypot(this.v.x, this.v.y);
+    if (Math.abs(this.spinZ) > 0.12) {
+      this.rot += Math.sign(this.spinZ) * (3 + Math.abs(this.spinZ) * 7 + speedXY * 0.12) * dt;
+    } else {
+      this.rot += speedXY * 0.4 * dt;
+    }
 
     if (this.stepCount++ % 5 === 0) this.trail.push({ ...this.p });
     this.checkDone();
@@ -135,7 +166,14 @@ export class BallSim {
     if (this.p.z < BALL_RADIUS) {
       this.p.z = BALL_RADIUS;
       if (this.v.z < 0) {
-        this.v.z = Math.abs(this.v.z) > 1 ? -this.v.z * 0.45 : 0;
+        if (Math.abs(this.v.z) > 1) {
+          this.v.z = -this.v.z * 0.45;
+          // O spin "morde" o gramado no quique e desvia a bola.
+          this.v.x += -this.spinZ * 1.8;
+          this.spinZ *= 0.65;
+        } else {
+          this.v.z = 0;
+        }
       }
       // atrito de rolagem
       this.v.x *= 0.99;

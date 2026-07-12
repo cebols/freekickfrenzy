@@ -2,8 +2,10 @@
 // Eixos: x lateral (0 = centro do gol), y = distância à linha do gol
 // (positivo campo adentro), z = altura.
 
-export const GOAL_WIDTH = 7.32;
-export const GOAL_HEIGHT = 2.44;
+// Gol propositalmente maior que o real (7,32×2,44): escala arcade, como
+// no jogo de referência em que o gol ocupa metade da tela.
+export const GOAL_WIDTH = 11;
+export const GOAL_HEIGHT = 3.2;
 export const GOAL_HALF = GOAL_WIDTH / 2;
 export const POST_RADIUS = 0.06;
 export const NET_DEPTH = 1.6;
@@ -11,8 +13,20 @@ export const NET_DEPTH = 1.6;
 export const BALL_RADIUS = 0.11;
 
 export const GRAVITY = 9.81;
-// Arrasto aerodinâmico: a = -DRAG_K * |v_rel| * v_rel (relativo ao ar/vento)
-export const DRAG_K = 0.012;
+// Arrasto aerodinâmico: a = -k * |v_rel| * v_rel (relativo ao ar/vento).
+// "Crise de arrasto" real: acima de ~16 m/s o coeficiente cai — chutes
+// fortes carregam mais longe do que a extrapolação do chute fraco.
+export const DRAG_K_LOW = 0.012;
+export const DRAG_K_HIGH = 0.008;
+export const DRAG_CRISIS_START = 16;
+export const DRAG_CRISIS_END = 24;
+
+// Knuckleball: bola quase sem spin em alta velocidade oscila de leve
+// para os lados (a "folha morta").
+export const KNUCKLE_SPIN_MAX = 0.1;
+export const KNUCKLE_MIN_SPEED = 23;
+export const KNUCKLE_ACCEL = 3.6;
+export const KNUCKLE_FREQ = 13;
 
 // Efeito (Magnus): aceleração lateral = MAGNUS_K * spin * perp(v_xy).
 // O spin é normalizado em [-1, 1] pelo desvio lateral da mira.
@@ -33,7 +47,10 @@ export const WALL_DISTANCE = 9.15; // distância regulamentar da bola
 export const WALL_PLAYER_WIDTH = 0.55;
 export const WALL_HEIGHT = 1.85;
 
-// Goleiro
-export const KEEPER_HALF_REACH = 0.8;
-export const KEEPER_HEIGHT = 2.05; // acima disso (ângulo superior) ele não alcança
+// Goleiro (redimensionado junto com o gol arcade)
+export const KEEPER_HALF_REACH = 1.05;
+export const KEEPER_HEIGHT = 2.5; // acima disso (ângulo superior) ele não alcança
 export const KEEPER_DEPTH = 0.8; // distância dele à frente da linha do gol
+
+// Vento abaixo desta força é tratado como calmaria (0)
+export const WIND_MIN_FORCE = 25;

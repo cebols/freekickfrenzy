@@ -25,7 +25,7 @@ export class KeeperSim {
   constructor(params: KeeperParams) {
     this.x = params.x;
     this.reaction = 0.42 - 0.3 * params.skill;
-    this.speed = 2.5 + 4 * params.skill;
+    this.speed = 3.2 + 4.5 * params.skill;
   }
 
   reset(params: KeeperParams): void {
