@@ -44,5 +44,7 @@ src/
       indicador, traves como cilindros, goleiro reativo com skill por fase
 - [x] **Etapa 3 — meta-jogo**: alvos ¼ de círculo nos ângulos, 9 fases,
       seleção de fases com estrelas persistidas (localStorage)
-- [ ] **Etapa 4 — polish**: bonecos articulados com expressões e bola
-      girando ✔; replay do lance, sons, partículas/torcida (pendentes)
+- [x] **Etapa 4 — polish**: bonecos articulados com expressões, bola
+      girando, replay em câmera lenta, sons WebAudio sintetizados (com
+      mute), barreira que pula, mergulho do goleiro, torcida que vibra,
+      rede que segura a bola e tela de título animada

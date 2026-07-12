@@ -16,6 +16,8 @@ export interface KeeperParams {
  */
 export class KeeperSim {
   x: number;
+  /** Velocidade lateral atual (para a pose de mergulho no render). */
+  vx = 0;
   private time = 0;
   private readonly reaction: number;
   private readonly speed: number;
@@ -28,6 +30,7 @@ export class KeeperSim {
 
   reset(params: KeeperParams): void {
     this.x = params.x;
+    this.vx = 0;
     this.time = 0;
   }
 
@@ -42,6 +45,8 @@ export class KeeperSim {
 
     const d = target - this.x;
     const maxStep = this.speed * dt;
-    this.x += Math.abs(d) < maxStep ? d : Math.sign(d) * maxStep;
+    const step = Math.abs(d) < maxStep ? d : Math.sign(d) * maxStep;
+    this.x += step;
+    this.vx = step / dt;
   }
 }

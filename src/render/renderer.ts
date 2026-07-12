@@ -7,14 +7,15 @@ const FIELD_TOP = GOAL_LINE_Y - 14;
 
 export type Mood = "neutral" | "grit" | "happy" | "sad" | "worried";
 
-export function drawBackdrop(ctx: CanvasRenderingContext2D): void {
-  // Arquibancada
+/** Arquibancada + placas; a torcida pula de alegria quando `excite` > 0. */
+export function drawBackdrop(ctx: CanvasRenderingContext2D, time = 0, excite = 0): void {
   ctx.fillStyle = "#7ecfd4";
   ctx.fillRect(0, 0, CANVAS_W, FIELD_TOP - 22);
   for (let row = 0; row < 4; row++) {
     for (let i = 0; i < 24; i++) {
       const cx = i * 21 + (row % 2 ? 10 : 0);
-      const cy = 14 + row * 26;
+      const bounce = excite > 0 ? Math.max(0, Math.sin(time * 11 + i * 1.3 + row)) * 6 * excite : 0;
+      const cy = 14 + row * 26 - bounce;
       ctx.fillStyle = ["#f2c894", "#e8b07a", "#d99f66"][(i + row) % 3];
       ctx.beginPath();
       ctx.arc(cx, cy, 7, 0, Math.PI * 2);
@@ -31,6 +32,62 @@ export function drawBackdrop(ctx: CanvasRenderingContext2D): void {
   for (let i = 0; i < 8; i++) {
     ctx.fillText("FRENZY", i * 64 + 6, FIELD_TOP - 6);
   }
+}
+
+/** Tela de título: sunburst girando + batedor gigante comemorando. */
+export function drawTitleScene(ctx: CanvasRenderingContext2D, time: number): void {
+  ctx.fillStyle = "#ffb300";
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  ctx.save();
+  ctx.translate(CANVAS_W / 2, CANVAS_H / 2);
+  ctx.rotate(time * 0.12);
+  ctx.fillStyle = "#ffe23d";
+  for (let i = 0; i < 12; i++) {
+    ctx.rotate(Math.PI / 6);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, 620, -0.13, 0.13);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // bola gigante quicando
+  const by = 430 - Math.abs(Math.sin(time * 2.4)) * 55;
+  ctx.fillStyle = "rgba(0,0,0,0.15)";
+  ctx.beginPath();
+  ctx.ellipse(330, 448, 34, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.strokeStyle = "#222";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(330, by, 30, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#222";
+  for (let i = 0; i < 3; i++) {
+    const a = time * 3 + (i * Math.PI * 2) / 3;
+    ctx.beginPath();
+    ctx.arc(330 + Math.cos(a) * 17, by + Math.sin(a) * 17, 9, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.arc(330, by, 6, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** Selo "REPLAY" piscando. */
+export function drawReplayBadge(ctx: CanvasRenderingContext2D, time: number): void {
+  if (Math.sin(time * 6) < -0.3) return;
+  ctx.save();
+  ctx.font = "bold 18px Trebuchet MS, sans-serif";
+  ctx.fillStyle = "#e33";
+  ctx.beginPath();
+  ctx.arc(24, 195, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillText("REPLAY", 36, 201);
+  ctx.restore();
 }
 
 export function drawField(ctx: CanvasRenderingContext2D): void {
@@ -147,7 +204,10 @@ function cornerTarget(
   ctx.fill();
 }
 
-export function drawGoal(ctx: CanvasRenderingContext2D): void {
+export function drawGoal(
+  ctx: CanvasRenderingContext2D,
+  netBall: { x: number; y: number; z: number } | null = null,
+): void {
   const tl = toScreen(-GOAL_HALF, 0, GOAL_HEIGHT);
   const br = toScreen(GOAL_HALF, 0, 0);
   const w = br.sx - tl.sx;
@@ -171,6 +231,19 @@ export function drawGoal(ctx: CanvasRenderingContext2D): void {
     ctx.moveTo(tl.sx, y);
     ctx.lineTo(br.sx, y);
     ctx.stroke();
+  }
+
+  // Rede estufando onde a bola está presa nela
+  if (netBall) {
+    const b = toScreen(netBall.x, netBall.y, netBall.z);
+    const depth = Math.min(1, -netBall.y / 1.2);
+    ctx.strokeStyle = `rgba(255,255,255,${0.5 + 0.3 * depth})`;
+    ctx.lineWidth = 1.5;
+    for (const rr of [9, 15]) {
+      ctx.beginPath();
+      ctx.ellipse(b.sx, b.sy, rr, rr * 0.8, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 
   // Alvos dos ângulos: ¼ interno vermelho, ¼ externo azul, translúcidos
@@ -200,6 +273,10 @@ interface FigureOpts {
   armsUp?: boolean;
   /** Fase da passada (0..1) para animar as pernas correndo. */
   runPhase?: number;
+  /** Elevação em pixels (pulo da barreira). */
+  liftPx?: number;
+  /** Inclinação do corpo em radianos (mergulho do goleiro). */
+  tiltRad?: number;
 }
 
 /** Bonequinho flat com pernas, braços e carinha. Pés em (x, y) do chão. */
@@ -217,11 +294,19 @@ function drawFigure(
   ctx.translate(feet.sx, feet.sy);
   ctx.lineWidth = 1;
 
-  // sombra
+  // sombra (fica no chão mesmo se o corpo pular/inclinar)
   ctx.fillStyle = "rgba(0,0,0,0.18)";
   ctx.beginPath();
   ctx.ellipse(0, 0, 10 * s, 3.5 * s, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  if (opts.liftPx) ctx.translate(0, -opts.liftPx);
+  if (opts.tiltRad) {
+    // gira em torno do quadril para a pose de mergulho
+    ctx.translate(0, -14 * s);
+    ctx.rotate(opts.tiltRad);
+    ctx.translate(0, 14 * s);
+  }
 
   // pernas (com passada de corrida opcional)
   const stride = opts.runPhase != null ? Math.sin(opts.runPhase * Math.PI * 2) * 3.5 : 0;
@@ -316,21 +401,38 @@ function drawFigure(
   ctx.restore();
 }
 
-export function drawWall(ctx: CanvasRenderingContext2D, wall: WallPlacement): void {
+export function drawWall(
+  ctx: CanvasRenderingContext2D,
+  wall: WallPlacement,
+  jumpZ = 0,
+): void {
   const spacing = (wall.halfWidth * 2) / wall.count;
   for (let i = 0; i < wall.count; i++) {
     const x = wall.x - wall.halfWidth + spacing * (i + 0.5);
-    drawFigure(ctx, x, wall.y, { shirt: "#d42a2a", shorts: "#a51f1f", scale: 0.9, mood: "grit" });
+    drawFigure(ctx, x, wall.y, {
+      shirt: "#d42a2a",
+      shorts: "#a51f1f",
+      scale: 0.9,
+      mood: "grit",
+      liftPx: jumpZ * 21,
+      armsUp: jumpZ > 0.1,
+    });
   }
 }
 
-export function drawKeeper(ctx: CanvasRenderingContext2D, keeperX: number, mood: Mood): void {
+export function drawKeeper(
+  ctx: CanvasRenderingContext2D,
+  keeperX: number,
+  mood: Mood,
+  dive = 0,
+): void {
   drawFigure(ctx, keeperX, KEEPER_DEPTH, {
     shirt: "#888",
     shorts: "#555",
     scale: 0.88,
     mood,
     armsUp: mood === "worried",
+    tiltRad: dive * 0.9,
   });
 }
 

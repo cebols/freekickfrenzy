@@ -4,6 +4,7 @@ import { LEVELS } from "./levels/levels";
 import { CANVAS_H, CANVAS_W } from "./render/camera";
 import { starsForScore } from "./scoring/score";
 import { loadProgress, saveGoal, type Progress } from "./persist/storage";
+import { sfx, unlockAudio, toggleMute } from "./audio/sfx";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
 const ctx = canvas.getContext("2d")!;
@@ -18,6 +19,7 @@ const resultTitle = $("#result-title");
 const resultStars = $("#result-stars");
 const resultDetail = $("#result-detail");
 const btnNext = $<HTMLButtonElement>("#btn-next");
+const btnReplayMini = $<HTMLButtonElement>("#btn-replay-mini");
 const levelsGrid = $("#levels-grid");
 
 let progress: Progress = loadProgress();
@@ -44,6 +46,14 @@ function starLabel(score: number): string {
   return stars === 4 ? "🏆" : "⭐".repeat(stars);
 }
 
+function totalScore(): number {
+  return Object.values(progress.best).reduce((a, b) => a + b, 0);
+}
+
+function updateScoreHud(): void {
+  $("#hud-score").textContent = String(totalScore());
+}
+
 function showLevels(): void {
   levelsGrid.innerHTML = "";
   LEVELS.forEach((level, i) => {
@@ -60,6 +70,7 @@ function showLevels(): void {
       screenLevels.classList.add("hidden");
       hud.classList.remove("hidden");
       game.loadLevel(i);
+      sfx.whistle();
     });
     levelsGrid.appendChild(btn);
   });
@@ -69,6 +80,8 @@ function showLevels(): void {
 const game = new Game({
   onGoal(result: ShotResult, levelIdx: number, isLast: boolean) {
     progress = saveGoal(levelIdx, result.score);
+    updateScoreHud();
+    sfx.goal();
     resultTitle.textContent = "GOL!";
     resultStars.textContent = starLabel(result.score);
     resultDetail.textContent = `Score ${result.score}/100${
@@ -76,12 +89,16 @@ const game = new Game({
     }`;
     btnNext.textContent = isLast ? "Fases" : "Próxima";
     screenResult.classList.remove("hidden");
+    btnReplayMini.classList.add("hidden");
   },
   onMiss(result: ShotResult) {
+    sfx.miss();
     showToast(MISS_LABEL[result.reason ?? "out"]);
+    if (game.hasReplay()) btnReplayMini.classList.remove("hidden");
   },
   onHudChange(levelIdx: number, total: number) {
     $("#hud-level").textContent = `${levelIdx + 1}/${total}`;
+    updateScoreHud();
   },
   onWind(wind: Wind) {
     // A seta aponta para onde o vento sopra, no referencial da tela
@@ -91,12 +108,25 @@ const game = new Game({
     const strength = wind.force / 100;
     $("#wind-arrow").style.color = strength > 0.6 ? "#f26d6d" : strength > 0.3 ? "#f2c94c" : "#6db3f2";
   },
+  onEvent(event) {
+    if (event === "post" || event === "crossbar") sfx.post();
+    else if (event === "wall" || event === "keeper") sfx.thud();
+  },
+  onKick() {
+    sfx.kick();
+    btnReplayMini.classList.add("hidden");
+  },
+  onReplayEnd(scored: boolean) {
+    if (scored) screenResult.classList.remove("hidden");
+    else if (game.hasReplay()) btnReplayMini.classList.remove("hidden");
+  },
 });
 
 // Exposto para testes automatizados e depuração no console.
 (window as unknown as { __game: Game }).__game = game;
 
 $("#btn-play").addEventListener("click", () => {
+  unlockAudio();
   screenTitle.classList.add("hidden");
   showLevels();
 });
@@ -119,7 +149,20 @@ btnNext.addEventListener("click", () => {
     showLevels();
   } else {
     game.nextLevel();
+    sfx.whistle();
   }
+});
+
+$("#btn-replay").addEventListener("click", () => {
+  if (game.startReplay()) screenResult.classList.add("hidden");
+});
+
+btnReplayMini.addEventListener("click", () => {
+  if (game.startReplay()) btnReplayMini.classList.add("hidden");
+});
+
+$("#btn-mute").addEventListener("click", () => {
+  $("#btn-mute").textContent = toggleMute() ? "🔇" : "🔊";
 });
 
 // Posição do ponteiro em coordenadas do canvas (o CSS escala o elemento).
@@ -134,6 +177,7 @@ function canvasPos(e: PointerEvent): { sx: number; sy: number } {
 // Mouse: hover mira, clique chuta. Touch: arrastar mira (a linha
 // acompanha o dedo), soltar chuta — sem depender de hover.
 canvas.addEventListener("pointerdown", (e) => {
+  unlockAudio();
   canvas.setPointerCapture(e.pointerId);
   const { sx, sy } = canvasPos(e);
   game.pointerMove(sx, sy);

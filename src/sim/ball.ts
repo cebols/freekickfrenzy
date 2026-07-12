@@ -59,7 +59,7 @@ export class BallSim {
     this.spinZ = spinZ;
   }
 
-  step(dt: number, keeperX: number): void {
+  step(dt: number, keeperX: number, wallJumpZ = 0): void {
     if (this.done) return;
     this.t += dt;
 
@@ -94,19 +94,12 @@ export class BallSim {
 
     this.collideGround();
     if (!this.scored) {
-      this.collideWall(prev);
+      this.collideWall(prev, wallJumpZ);
       this.collideKeeper(prev, keeperX);
       const hitFrame = this.collidePosts(prev) || this.collideCrossbar(prev);
       if (!hitFrame) this.checkGoalLine(prev);
     } else {
-      // Dentro da rede: freia rápido e não sai do fundo.
-      const brake = Math.max(0, 1 - 6 * dt);
-      this.v.x *= brake;
-      this.v.y *= brake;
-      if (this.p.y < -NET_DEPTH) {
-        this.p.y = -NET_DEPTH;
-        this.v.y = 0;
-      }
+      this.holdInNet(dt);
     }
 
     // Rotação visual: rolagem pela velocidade + contribuição do spin.
@@ -114,6 +107,28 @@ export class BallSim {
 
     if (this.stepCount++ % 5 === 0) this.trail.push({ ...this.p });
     this.checkDone();
+  }
+
+  /** Depois do gol a rede segura a bola: fundo, laterais e teto. */
+  private holdInNet(dt: number): void {
+    const brake = Math.max(0, 1 - 9 * dt);
+    this.v.x *= brake;
+    this.v.y *= brake;
+    if (this.p.y < -NET_DEPTH) {
+      this.p.y = -NET_DEPTH;
+      this.v.y = 0;
+      this.v.x *= 0.2;
+      this.v.z *= 0.3;
+    }
+    const sideLimit = GOAL_HALF - 0.15;
+    if (Math.abs(this.p.x) > sideLimit) {
+      this.p.x = Math.sign(this.p.x) * sideLimit;
+      this.v.x = 0;
+    }
+    if (this.p.y < 0 && this.p.z > GOAL_HEIGHT - 0.1) {
+      this.p.z = GOAL_HEIGHT - 0.1;
+      this.v.z = -Math.abs(this.v.z) * 0.2;
+    }
   }
 
   private collideGround(): void {
@@ -143,10 +158,18 @@ export class BallSim {
    * direção, altura e spin novos conforme o ponto do corpo em que bate.
    * No meio do peito volta mais; de raspão no ombro deflete e segue.
    */
-  private collideWall(prev: Vec3): void {
+  private collideWall(prev: Vec3, jumpZ: number): void {
     const hit = this.crossPoint(prev, this.wall.y);
     if (!hit) return;
-    if (Math.abs(hit.x - this.wall.x) >= this.wall.halfWidth + BALL_RADIUS || hit.z >= WALL_HEIGHT) {
+    // Barreira no ar: os pés sobem (dá para passar POR BAIXO no pulo) e
+    // o topo do bloqueio sobe junto.
+    const blockLow = jumpZ * 0.85;
+    const blockHigh = WALL_HEIGHT + jumpZ;
+    if (
+      Math.abs(hit.x - this.wall.x) >= this.wall.halfWidth + BALL_RADIUS ||
+      hit.z >= blockHigh ||
+      hit.z < blockLow
+    ) {
       return;
     }
     this.events.push("wall");
