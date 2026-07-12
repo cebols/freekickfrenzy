@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>⚽</text></svg>" />
     <title>Free Kick Frenzy</title>
-    <script type="module" crossorigin src="./assets/index-CvEfalrQ.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-D5vhTYjh.css">
+    <script type="module" crossorigin src="./assets/index-Tr09f6kL.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CODtg9pw.css">
   </head>
   <body>
     <div id="stage">
@@ -19,6 +19,7 @@
           <span class="hud-label">Vento</span>
           <span id="hud-wind"><span id="wind-arrow">➤</span><span id="wind-force">0</span></span>
         </div>
+        <button id="btn-mute" class="hud-btn" title="Som">🔊</button>
       </div>
 
       <div id="screen-title" class="overlay screen">
@@ -41,11 +42,14 @@
         <p id="result-stars"></p>
         <p id="result-detail"></p>
         <div class="btn-row">
+          <button id="btn-replay" class="btn btn-secondary">🎥 Replay</button>
           <button id="btn-retry" class="btn btn-secondary">Repetir</button>
           <button id="btn-levels" class="btn btn-secondary">Fases</button>
           <button id="btn-next" class="btn">Próxima</button>
         </div>
       </div>
+
+      <button id="btn-replay-mini" class="overlay mini-btn hidden">🎥 Replay</button>
 
       <div id="toast" class="overlay toast hidden"></div>
     </div>
