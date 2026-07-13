@@ -2,24 +2,16 @@ import { LEVELS, placeWall, type LevelDef, type WallPlacement } from "../levels/
 import { BallSim, type BallEvent } from "../sim/ball";
 import { KeeperSim } from "../sim/keeper";
 import {
-  AIM_CIRCLE_RADIUS,
-  clampToAimCircle,
+  AIM_BEHIND_PX,
+  AIM_RADIUS_PX,
   computeKick,
-  kickDirection,
-  aimCircleCenter,
+  screenAim,
   type AimState,
   type Kick,
 } from "../sim/kick";
 import { WIND_MAX_SPEED, WIND_MIN_FORCE } from "../sim/world";
 import { scoreGoal } from "../scoring/score";
-import {
-  CANVAS_H,
-  CANVAS_W,
-  PX_PER_M_X,
-  PX_PER_M_Y,
-  toScreen,
-  toWorldGround,
-} from "../render/camera";
+import { CANVAS_H, CANVAS_W, toScreen, toWorldGround } from "../render/camera";
 import {
   drawAimLine,
   drawAimZone,
@@ -71,7 +63,10 @@ const MISS_RESET_DELAY = 0.8; // segundos até rearmar a cobrança
 const MAX_RUN_TIME = 0.45; // corrida até a bola dura no máximo isto
 const WALL_JUMP_DURATION = 0.55;
 const WALL_JUMP_HEIGHT = 0.62;
-const REPLAY_SPEED = 0.55; // câmera lenta
+// O voo roda em câmera ~40% mais lenta: a graça é VER a trajetória e
+// sofrer até saber se vai bater na trave. O replay é mais lento ainda.
+const FLIGHT_TIME_SCALE = 0.6;
+const REPLAY_SPEED = 0.4;
 
 interface ShotFrame {
   bx: number;
@@ -99,7 +94,8 @@ export class Game {
 
   private missTimer = 0;
   private pendingKick: Kick | null = null;
-  private aimCenter = { x: 0, y: 0 };
+  /** Centro do semicírculo de mira, em pixels de tela. */
+  private aimCenterS = { sx: 0, sy: 0 };
   private runSpeed = 12;
   private flightT = 0;
   private wallJumpAt = Infinity;
@@ -113,27 +109,31 @@ export class Game {
   private recordTick = 0;
 
   constructor(private cb: GameCallbacks) {
-    this.aimCenter = this.computeAimCenter();
+    this.aimCenterS = this.computeAimCenter();
     this.aim = this.restAim();
   }
 
   /**
-   * Centro do semicírculo: atrás da bola na direção oposta ao gol, mas
-   * clampado em coordenadas de tela para a área de mira nunca sair do
-   * canvas em faltas de canto.
+   * Centro do semicírculo: na tela, atrás da bola na direção oposta ao
+   * gol, clampado para o círculo inteiro caber no canvas. A simetria da
+   * mira não depende do clamp (o desvio é medido do eixo centro→bola).
    */
-  private computeAimCenter(): { x: number; y: number } {
-    const raw = aimCircleCenter(this.level.ball);
-    const s = toScreen(raw.x, raw.y);
-    const mx = AIM_CIRCLE_RADIUS * PX_PER_M_X + 12;
-    const my = AIM_CIRCLE_RADIUS * PX_PER_M_Y + 12;
-    const sx = Math.max(mx, Math.min(CANVAS_W - mx, s.sx));
-    const sy = Math.max(my, Math.min(CANVAS_H - my, s.sy));
-    return toWorldGround(sx, sy);
+  private computeAimCenter(): { sx: number; sy: number } {
+    const bS = toScreen(this.level.ball.x, this.level.ball.y);
+    const gS = toScreen(0, 0);
+    const len = Math.hypot(bS.sx - gS.sx, bS.sy - gS.sy) || 1;
+    const sxRaw = bS.sx + ((bS.sx - gS.sx) / len) * AIM_BEHIND_PX;
+    const syRaw = bS.sy + ((bS.sy - gS.sy) / len) * AIM_BEHIND_PX;
+    const m = AIM_RADIUS_PX * 0.55; // pode sangrar um pouco da tela
+    return {
+      sx: Math.max(m, Math.min(CANVAS_W - m, sxRaw)),
+      sy: Math.max(m, Math.min(CANVAS_H - 40, syRaw)),
+    };
   }
 
   private restAim(): AimState {
-    return { kicker: { ...this.aimCenter }, power: 0 };
+    const w = toWorldGround(this.aimCenterS.sx, this.aimCenterS.sy);
+    return { kicker: w, screen: { ...this.aimCenterS }, power: 0, dev: 0 };
   }
 
   start(): void {
@@ -144,7 +144,7 @@ export class Game {
     this.levelIdx = idx;
     this.level = LEVELS[idx];
     this.wall = placeWall(this.level);
-    this.aimCenter = this.computeAimCenter();
+    this.aimCenterS = this.computeAimCenter();
     this.cb.onHudChange(idx, LEVELS.length);
     this.frames = [];
     this.newAttempt();
@@ -185,7 +185,14 @@ export class Game {
 
   pointerMove(sx: number, sy: number): void {
     if (this.phase !== "aiming") return;
-    this.aim = clampToAimCircle(this.level.ball, this.aimCenter, toWorldGround(sx, sy));
+    const bS = toScreen(this.level.ball.x, this.level.ball.y);
+    const a = screenAim(bS, this.aimCenterS, { sx, sy });
+    this.aim = {
+      kicker: toWorldGround(a.screen.sx, a.screen.sy),
+      screen: a.screen,
+      power: a.power,
+      dev: a.dev,
+    };
   }
 
   /** Confirma a mira: o batedor corre até a bola e só então chuta. */
@@ -281,9 +288,12 @@ export class Game {
 
   private updateFlight(dt: number): void {
     const sim = this.sim!;
-    this.flightT += dt;
-    this.keeper.update(dt, sim);
-    sim.step(dt, this.keeper.x, this.wallJumpZ());
+    // Câmera lenta: o mundo inteiro do voo (bola, goleiro, barreira)
+    // roda no mesmo relógio desacelerado — a física não muda.
+    const sdt = dt * FLIGHT_TIME_SCALE;
+    this.flightT += sdt;
+    this.keeper.update(sdt, sim);
+    sim.step(sdt, this.keeper.x, this.wallJumpZ());
 
     // grava o lance para o replay (a cada 2 passos ≈ 60 fps)
     if (this.recordTick++ % 2 === 0 && this.frames.length < 900) {
@@ -356,8 +366,11 @@ export class Game {
     // A bola fica mais perto do gol que o batedor: pinta antes dele
     // (painter's algorithm) para não aparecer sobre a cabeça do boneco.
     if (this.phase === "aiming") {
-      drawAimZone(ctx, this.level.ball, this.aimCenter);
-      drawAimLine(ctx, this.aim.kicker, this.level.ball, kickDirection(this.level.ball, this.aim));
+      const bS = toScreen(this.level.ball.x, this.level.ball.y);
+      drawAimZone(ctx, bS, this.aimCenterS);
+      const kv = computeKick(this.level.ball, this.aim).v;
+      const kvLen = Math.hypot(kv.x, kv.y) || 1;
+      drawAimLine(ctx, this.aim.kicker, this.level.ball, { x: kv.x / kvLen, y: kv.y / kvLen });
       drawBall(ctx, { ...this.level.ball, z: 0.11 });
       drawKicker(ctx, this.aim.kicker);
     } else if (this.phase === "runup") {

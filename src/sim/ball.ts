@@ -22,6 +22,7 @@ import {
   SPIN_DECAY,
   SPIN_SURFACE_KICK,
   WALL_HEIGHT,
+  WIND_AXIAL_BOOST,
   WIND_PUSH_K,
 } from "./world";
 import type { WallPlacement } from "../levels/levels";
@@ -106,6 +107,15 @@ export class BallSim {
     if (this.p.z > BALL_RADIUS * 2) {
       this.v.x += WIND_PUSH_K * this.wind.x * dt;
       this.v.y += WIND_PUSH_K * this.wind.y * dt;
+      // A componente do vento alinhada ao chute pesa um pouco mais:
+      // vento a favor acelera a bola, contra segura.
+      const spd = Math.hypot(this.v.x, this.v.y);
+      if (spd > 1) {
+        const axial = (this.wind.x * this.v.x + this.wind.y * this.v.y) / spd;
+        const boost = WIND_AXIAL_BOOST * WIND_PUSH_K * axial;
+        this.v.x += (this.v.x / spd) * boost * dt;
+        this.v.y += (this.v.y / spd) * boost * dt;
+      }
     }
 
     // Magnus: acelera perpendicular à velocidade horizontal.

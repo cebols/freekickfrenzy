@@ -1,22 +1,23 @@
 import type { Vec3 } from "./vec";
 import { vec3 } from "./vec";
 
-// Mapeamento do clique no semicírculo → velocidade inicial da bola.
-// Todas as constantes de "game feel" vivem aqui para facilitar o tuning.
+// Mapeamento da mira → velocidade inicial da bola.
+// A mira funciona como um "joystick" em COORDENADAS DE TELA: o
+// semicírculo é um círculo perfeito na tela (nada de achatamento) e o
+// desvio angular é medido em relação ao eixo centro→bola — simétrico
+// em qualquer posição de falta, mesmo com o centro clampado no canto.
 
-export const AIM_CIRCLE_BEHIND = 4.0; // centro do semicírculo, metros atrás da bola
-export const AIM_CIRCLE_RADIUS = 4.2;
+export const AIM_RADIUS_PX = 132; // raio do semicírculo na tela
+export const AIM_BEHIND_PX = 68; // distância do centro atrás da bola, na tela
 
 const MIN_SPEED = 14.5; // m/s no chute mais fraco
 const MAX_SPEED = 34; // petardo de verdade na força máxima
 
 // Quanto do desvio lateral da mira vira spin (curva de volta para o centro).
-// Calibrado junto com AIM_SENSITIVITY: a curva precisa ser vistosa, mas sem
-// cancelar a abertura da mira — senão todo chute converge no goleiro.
 const SPIN_AIM_K = 1.2;
 
-// O ângulo batedor→bola é amortecido por este fator para virar a direção
-// real do chute — sem isso, miras levemente abertas saem larguíssimas.
+// O ângulo da mira é amortecido por este fator para virar a direção real
+// do chute — sem isso, miras levemente abertas saem larguíssimas.
 const AIM_SENSITIVITY = 0.65;
 
 // Altura em "U" pela força:
@@ -38,61 +39,55 @@ function vzForPower(p: number): number {
 }
 
 export interface AimState {
-  /** Posição do batedor (pé de apoio) no chão, em metros. */
+  /** Posição do batedor no chão, em metros (para desenhar/correr). */
   kicker: { x: number; y: number };
+  /** Posição do batedor na tela (dentro do semicírculo). */
+  screen: { sx: number; sy: number };
   /** Força normalizada 0..1 (distância ao centro do semicírculo). */
   power: number;
+  /** Desvio angular da mira em relação ao eixo centro→bola (rad, com sinal). */
+  dev: number;
 }
 
 /**
- * Centro do semicírculo de mira: fica atrás da bola, na direção oposta
- * ao centro do gol (a "meia-lua" clara do jogo original).
+ * Joystick de mira em tela: restringe o ponteiro ao semicírculo (no lado
+ * oposto à bola) e extrai força + desvio angular simétrico.
  */
-export function aimCircleCenter(ball: { x: number; y: number }): { x: number; y: number } {
-  const dist = Math.hypot(ball.x, ball.y);
-  return {
-    x: ball.x + (ball.x / dist) * AIM_CIRCLE_BEHIND,
-    y: ball.y + (ball.y / dist) * AIM_CIRCLE_BEHIND,
-  };
-}
+export function screenAim(
+  ballS: { sx: number; sy: number },
+  centerS: { sx: number; sy: number },
+  point: { sx: number; sy: number },
+): { screen: { sx: number; sy: number }; power: number; dev: number } {
+  const axLen = Math.hypot(ballS.sx - centerS.sx, ballS.sy - centerS.sy) || 1;
+  const ax = (ballS.sx - centerS.sx) / axLen;
+  const ay = (ballS.sy - centerS.sy) / axLen;
 
-/**
- * Restringe a posição do mouse (em metros) ao semicírculo de mira:
- * dentro do raio e nunca à frente do centro (semiplano oposto ao gol).
- * O centro pode vir deslocado (clamp de tela em faltas de canto).
- */
-export function clampToAimCircle(
-  ball: { x: number; y: number },
-  c: { x: number; y: number },
-  point: { x: number; y: number },
-): AimState {
-  let dx = point.x - c.x;
-  let dy = point.y - c.y;
-
-  // Normal do semiplano: direção centro → bola. Como o centro pode estar
-  // deslocado pelo clamp de tela (faltas de canto), orientar pela bola
-  // mantém a meia-lua inteira utilizável em qualquer posição.
-  const toBall = { x: ball.x - c.x, y: ball.y - c.y };
-  const tbLen = Math.hypot(toBall.x, toBall.y) || 1;
-  const nx = toBall.x / tbLen;
-  const ny = toBall.y / tbLen;
-
-  // Não deixa o batedor passar do diâmetro do semicírculo (lado da bola).
-  const forward = dx * nx + dy * ny;
+  let dx = point.sx - centerS.sx;
+  let dy = point.sy - centerS.sy;
+  // meia-lua: não passa do diâmetro (lado da bola)
+  const forward = dx * ax + dy * ay;
   if (forward > 0) {
-    dx -= forward * nx;
-    dy -= forward * ny;
+    dx -= forward * ax;
+    dy -= forward * ay;
   }
-
   const r = Math.hypot(dx, dy);
-  if (r > AIM_CIRCLE_RADIUS) {
-    dx *= AIM_CIRCLE_RADIUS / r;
-    dy *= AIM_CIRCLE_RADIUS / r;
+  if (r > AIM_RADIUS_PX) {
+    dx *= AIM_RADIUS_PX / r;
+    dy *= AIM_RADIUS_PX / r;
   }
+  const px = centerS.sx + dx;
+  const py = centerS.sy + dy;
+
+  // desvio angular da direção batedor→bola em relação ao eixo centro→bola
+  const kLen = Math.hypot(ballS.sx - px, ballS.sy - py) || 1;
+  const kx = (ballS.sx - px) / kLen;
+  const ky = (ballS.sy - py) / kLen;
+  const dev = Math.atan2(ky * ax - kx * ay, kx * ax + ky * ay);
 
   return {
-    kicker: { x: c.x + dx, y: c.y + dy },
-    power: Math.min(1, Math.hypot(dx, dy) / AIM_CIRCLE_RADIUS),
+    screen: { sx: px, sy: py },
+    power: Math.min(1, Math.hypot(dx, dy) / AIM_RADIUS_PX),
+    dev,
   };
 }
 
@@ -105,49 +100,26 @@ export interface Kick {
 }
 
 /**
- * Converte a mira em velocidade inicial: a bola sai na direção
- * batedor → bola (a linha tracejada), com módulo dado pela força.
- * Mirar fora da reta bola–gol abre o chute e gera spin que curva
- * a bola de volta para o centro do gol (a "folha seca").
+ * Converte a mira em velocidade inicial: o desvio angular (amortecido)
+ * é aplicado simetricamente sobre a reta bola→centro do gol. Mirar
+ * aberto abre o chute e gera spin que curva de volta (a "folha seca").
  */
-/**
- * Direção efetiva do chute no chão: o ângulo da mira (batedor→bola) em
- * relação à reta bola→gol, amortecido por AIM_SENSITIVITY.
- */
-export function kickDirection(
-  ball: { x: number; y: number },
-  aim: AimState,
-): { x: number; y: number; lateral: number } {
+export function computeKick(ball: { x: number; y: number }, aim: AimState): Kick {
   const goalDist = Math.hypot(ball.x, ball.y);
   const ux = -ball.x / goalDist;
   const uy = -ball.y / goalDist;
-
-  let dx = ball.x - aim.kicker.x;
-  let dy = ball.y - aim.kicker.y;
-  const len = Math.hypot(dx, dy);
-  if (len < 1e-6) {
-    return { x: ux, y: uy, lateral: 0 };
-  }
-  dx /= len;
-  dy /= len;
-
-  // Componente lateral da mira (seno do desvio, com sinal).
-  const lateral = dx * -uy + dy * ux;
-  const dev = Math.atan2(dy * ux - dx * uy, dx * ux + dy * uy);
-  const ang = dev * AIM_SENSITIVITY;
+  const ang = aim.dev * AIM_SENSITIVITY;
   const cos = Math.cos(ang);
   const sin = Math.sin(ang);
-  return { x: ux * cos - uy * sin, y: ux * sin + uy * cos, lateral };
-}
+  const dirX = ux * cos - uy * sin;
+  const dirY = ux * sin + uy * cos;
+  const lateral = Math.sin(aim.dev);
 
-export function computeKick(ball: { x: number; y: number }, aim: AimState): Kick {
-  const dir = kickDirection(ball, aim);
   const speed = MIN_SPEED + aim.power * (MAX_SPEED - MIN_SPEED);
   const vz = vzForPower(aim.power);
   // Spin oposto ao desvio da mira: chute aberto curva de volta ao centro.
-  const spinZ = Math.max(-1, Math.min(1, -SPIN_AIM_K * dir.lateral));
+  const spinZ = Math.max(-1, Math.min(1, -SPIN_AIM_K * lateral));
 
-  const goalDist = Math.hypot(ball.x, ball.y);
   const dipScale = Math.max(0.55, Math.min(1.3, DIP_REF_DIST / goalDist));
   const dipPower = Math.max(0, (aim.power - 0.5) / 0.5);
   // Efeito também derruba a bola (Magnus com componente vertical):
@@ -155,7 +127,7 @@ export function computeKick(ball: { x: number; y: number }, aim: AimState): Kick
   const spinDip = Math.abs(spinZ) * 2.6;
 
   return {
-    v: vec3(dir.x * speed, dir.y * speed, vz),
+    v: vec3(dirX * speed, dirY * speed, vz),
     spinZ,
     dip: DIP_ACCEL_MAX * dipPower * dipScale + spinDip,
   };

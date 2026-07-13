@@ -1,6 +1,6 @@
 import { CANVAS_H, CANVAS_W, GOAL_LINE_Y, toScreen } from "./camera";
 import { GOAL_HALF, GOAL_HEIGHT, KEEPER_DEPTH } from "../sim/world";
-import { AIM_CIRCLE_RADIUS } from "../sim/kick";
+import { AIM_RADIUS_PX } from "../sim/kick";
 import type { WallPlacement } from "../levels/levels";
 
 const FIELD_TOP = GOAL_LINE_Y - 14;
@@ -448,24 +448,15 @@ export function drawKicker(
   });
 }
 
+/** Meia-lua de mira: círculo perfeito em coordenadas de tela. */
 export function drawAimZone(
   ctx: CanvasRenderingContext2D,
-  ball: { x: number; y: number },
-  c: { x: number; y: number },
+  ballS: { sx: number; sy: number },
+  cS: { sx: number; sy: number },
 ): void {
-  // Mesma orientação do clamp: meia-lua no lado oposto à bola.
-  const base = Math.atan2(ball.y - c.y, ball.x - c.x);
-
+  const base = Math.atan2(ballS.sy - cS.sy, ballS.sx - cS.sx);
   ctx.beginPath();
-  for (let i = 0; i <= 32; i++) {
-    const a = base + Math.PI / 2 + (Math.PI * i) / 32;
-    const p = toScreen(
-      c.x + AIM_CIRCLE_RADIUS * Math.cos(a),
-      c.y + AIM_CIRCLE_RADIUS * Math.sin(a),
-    );
-    if (i === 0) ctx.moveTo(p.sx, p.sy);
-    else ctx.lineTo(p.sx, p.sy);
-  }
+  ctx.arc(cS.sx, cS.sy, AIM_RADIUS_PX, base + Math.PI / 2, base + Math.PI * 1.5);
   ctx.closePath();
   ctx.fillStyle = "rgba(255,255,255,0.22)";
   ctx.fill();

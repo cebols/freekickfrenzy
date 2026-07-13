@@ -24,8 +24,10 @@ export class KeeperSim {
 
   constructor(params: KeeperParams) {
     this.x = params.x;
-    this.reaction = 0.42 - 0.3 * params.skill;
-    this.speed = 3.2 + 4.5 * params.skill;
+    // Tracking contido de propósito: chute com muito efeito muda de
+    // trajetória mais rápido do que ele corrige.
+    this.reaction = 0.5 - 0.32 * params.skill;
+    this.speed = 2.2 + 3.4 * params.skill;
   }
 
   reset(params: KeeperParams): void {

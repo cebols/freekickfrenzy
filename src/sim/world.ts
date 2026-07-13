@@ -41,6 +41,9 @@ export const WIND_MAX_SPEED = 15;
 // ...e além do arrasto relativo, empurra a bola diretamente — com
 // vendaval a trajetória fica cômica de propósito.
 export const WIND_PUSH_K = 1.5;
+// Reforço da componente do vento ALINHADA ao chute: vento a favor
+// empurra, contra segura — um pouco além do empurrão base.
+export const WIND_AXIAL_BOOST = 0.6;
 
 // Barreira
 export const WALL_DISTANCE = 9.15; // distância regulamentar da bola
