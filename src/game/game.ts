@@ -63,9 +63,9 @@ const MISS_RESET_DELAY = 0.8; // segundos até rearmar a cobrança
 const MAX_RUN_TIME = 0.45; // corrida até a bola dura no máximo isto
 const WALL_JUMP_DURATION = 0.55;
 const WALL_JUMP_HEIGHT = 0.62;
-// O voo roda em câmera ~40% mais lenta: a graça é VER a trajetória e
+// O voo roda em câmera ~20% mais lenta: a graça é VER a trajetória e
 // sofrer até saber se vai bater na trave. O replay é mais lento ainda.
-const FLIGHT_TIME_SCALE = 0.6;
+const FLIGHT_TIME_SCALE = 0.8;
 const REPLAY_SPEED = 0.4;
 
 interface ShotFrame {

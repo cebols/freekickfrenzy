@@ -7,8 +7,8 @@ import { vec3 } from "./vec";
 // desvio angular é medido em relação ao eixo centro→bola — simétrico
 // em qualquer posição de falta, mesmo com o centro clampado no canto.
 
-export const AIM_RADIUS_PX = 132; // raio do semicírculo na tela
-export const AIM_BEHIND_PX = 68; // distância do centro atrás da bola, na tela
+export const AIM_RADIUS_PX = 114; // raio do semicírculo na tela
+export const AIM_BEHIND_PX = 5; // a meia-lua fica praticamente colada na bola
 
 const MIN_SPEED = 14.5; // m/s no chute mais fraco
 const MAX_SPEED = 34; // petardo de verdade na força máxima

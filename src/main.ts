@@ -105,14 +105,14 @@ const game = new Game({
     // (mundo +y aponta para baixo na tela, igual ao ângulo CSS).
     const arrow = $("#wind-arrow");
     arrow.style.transform = `rotate(${wind.dir}rad)`;
+    $("#wind-force").textContent = String(wind.force);
     if (wind.force === 0) {
-      $("#wind-force").textContent = "—";
+      // calmaria: mostra 0 com a seta apagada
       arrow.style.color = "#9ab";
-      arrow.style.opacity = "0.4";
+      arrow.style.opacity = "0.35";
       return;
     }
     arrow.style.opacity = "1";
-    $("#wind-force").textContent = String(wind.force);
     const strength = wind.force / 100;
     arrow.style.color = strength > 0.6 ? "#f26d6d" : strength > 0.3 ? "#f2c94c" : "#6db3f2";
   },
